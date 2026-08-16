@@ -1,0 +1,79 @@
+@page "/users"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+@implements IDisposable
+
+<div class="card">
+    <h1>@L.T("Users")</h1>
+    <p class="sub">@L.T("ConnectedUsersSub")</p>
+    <div class="row" style="margin-bottom:10px;">
+        <span class="badge @(Server.Running ? "running" : "stopped")">@(Server.Running ? L.T("Running") : L.T("Stopped"))</span>
+        <button class="btn secondary" @onclick="Refresh" style="padding:6px 14px;font-size:12px;">@L.T("Refresh")</button>
+    </div>
+    <table>
+        <thead><tr><th>@L.T("Name")</th><th>@L.T("Level")</th><th>@L.T("IP")</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var u in _users)
+            {
+                <tr>
+                    <td><b>@u.Name</b></td>
+                    <td>@u.Level</td>
+                    <td>@u.Ip</td>
+                    <td style="width:70px;"><button class="btn danger" style="padding:5px 12px;font-size:12px;" @onclick="() => Kick(u.Name)">@L.T("Kick")</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (!_users.Any())
+    {
+        <p class="sub">@L.T("NoUsers")</p>
+    }
+</div>
+
+@code {
+    private List<UserRow> _users = new();
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new Timer(_ => SafeTick(), null, 2000, 2000);
+    }
+
+    private void SafeTick()
+    {
+        try
+        {
+            InvokeAsync(Refresh);
+        }
+        catch (ObjectDisposedException) { }
+        catch { }
+    }
+
+    private void Refresh()
+    {
+        try
+        {
+            _users = Server.Users.ToList();
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private void Kick(string name)
+    {
+        Server.Kick(name);
+        Refresh();
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

@@ -1,0 +1,437 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="using:gui.Models"
+        xmlns:svc="using:gui.Services"
+        mc:Ignorable="d" d:DesignWidth="902" d:DesignHeight="749"
+        x:Class="gui.MainWindow"
+        Title="sb0t Pyxis"
+        Width="902"
+        Height="749"
+        MinWidth="720"
+        MinHeight="480"
+        CanResize="True"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBackground}"
+        Closing="Window_Closing"
+        Closed="Window_Closed"
+        Opened="Window_Opened">
+    <Window.Styles>
+        <Style Selector="Window">
+            <Setter Property="Foreground" Value="{DynamicResource AppText}" />
+        </Style>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AppText}" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AppAccent}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AppAccentHover}" />
+        </Style>
+        <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AppAccentPressed}" />
+        </Style>
+        <Style Selector="Button.ghost">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorder}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppAccent}" />
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource AppCardBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource AppText}" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Foreground" Value="{DynamicResource AppText}" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource AppText}" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="*,Auto" Margin="0">
+        <TabControl x:Name="tabControl1" Grid.Row="0" Margin="10,10,10,0">
+            <!-- ===================== MAIN ===================== -->
+            <TabItem x:Name="main" Header="Main">
+                <Grid RowDefinitions="Auto,*" Margin="0">
+                    <Border Grid.Row="0" Classes="card" Margin="0,0,0,10" Padding="16">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <Image Width="48" Height="48" Stretch="Uniform"
+                                       Source="avares://sb0t/Assets/chat-bubble-icon.png" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock x:Name="label1" FontSize="18" FontWeight="Bold"
+                                               Foreground="{DynamicResource AppAccent}" />
+                                    <TextBlock x:Name="statusLabel" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource AppTextSecondary}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Button x:Name="button1" Classes="primary" Content="Start server"
+                                        MinWidth="150" Height="34" Click="ServerStartStop" />
+                                <Button x:Name="button2" Classes="ghost" Content="Open data folder"
+                                        Height="34" Click="button2_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*" Margin="0,0,0,10">
+                        <!-- left: room settings -->
+                        <Border Classes="card" Grid.Column="0" Margin="0,0,10,0">
+                            <StackPanel Spacing="10">
+                                <TextBlock FontWeight="Bold" FontSize="14" Text="Room" />
+                                <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label2" Text="Room name:" VerticalAlignment="Center" />
+                                    <TextBox x:Name="textBox1" Grid.Column="1" TextChanged="TextBoxTextChanged" />
+                                </Grid>
+                                <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label3" Text="Room port:" VerticalAlignment="Center" />
+                                    <TextBox x:Name="textBox2" Grid.Column="1" TextChanged="TextBoxTextChanged" />
+                                </Grid>
+                                <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label4" Text="Bot name:" VerticalAlignment="Center" />
+                                    <TextBox x:Name="textBox3" Grid.Column="1" TextChanged="TextBoxTextChanged" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- right: options -->
+                        <Border Classes="card" Grid.Column="1">
+                            <StackPanel Spacing="8">
+                                <CheckBox x:Name="checkBox1" Content="Chat logging enabled" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox2" Content="Room scribbles enabled" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox3" Content="Start server when sb0t starts" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox4" Content="Start sb0t minimized" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox5" Content="Show room on the channel list" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox6" Content="Support voice chat" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox9" Content="ib0t support enabled" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox25" Content="Fonts enabled" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
+                        <Button x:Name="button3" Content="Ares join" MinWidth="90" Height="30" IsEnabled="False" Click="button3_Click" />
+                        <Button x:Name="button4" Content="cb0t join" MinWidth="90" Height="30" IsEnabled="False" Click="button4_Click" />
+                        <Border Width="4" />
+                        <Image x:Name="image4" Width="28" Height="28" Cursor="Hand"
+                               Source="avares://sb0t/Assets/England-icon.png" Tapped="EnglishClicked" ToolTip.Tip="For English Users" />
+                        <Image x:Name="image3" Width="28" Height="28" Cursor="Hand"
+                               Source="avares://sb0t/Assets/Spain-icon.png" Tapped="SpanishClicked" ToolTip.Tip="Para Usuarios Españoles" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== ADMIN ===================== -->
+            <TabItem x:Name="admin" Header="Admin">
+                <Grid RowDefinitions="Auto,*,Auto" Margin="0">
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+                        <TextBlock x:Name="label5" Text="Owner password:" VerticalAlignment="Center" />
+                        <TextBox x:Name="textBox4" Width="200" TextChanged="TextBoxTextChanged" />
+                    </StackPanel>
+                    <Border Grid.Row="1" Classes="card">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,0,0,8">
+                                <TextBox x:Name="cmdFilter" Watermark="Filter commands..." TextChanged="CmdFilter_TextChanged" />
+                                <CheckBox x:Name="checkBox10" Grid.Column="1" Content="Enable built in commands"
+                                          VerticalAlignment="Center" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                            </Grid>
+                            <Border Grid.Row="1" Background="{DynamicResource AppCardBackground}"
+                                    BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="6">
+                                <ListBox x:Name="listView1" Background="Transparent" BorderThickness="0">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="models:CommandItem">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource AppText}" />
+                                                <ComboBox Grid.Column="1" Width="170" MinWidth="150"
+                                                          ItemsSource="{Binding Options}"
+                                                          SelectedItem="{Binding Level}"
+                                                          SelectionChanged="LevelCombo_SelectionChanged" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <CheckBox x:Name="checkBox22" Grid.Row="2" Content="Check passwords against clients (strict mode)"
+                              Margin="0,8,0,0" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== LINKING ===================== -->
+            <TabItem x:Name="linking" Header="Linking">
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,*" Margin="0">
+                    <Border Grid.Column="0" Grid.RowSpan="2" Classes="card" Margin="0,0,10,0">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="label26" FontWeight="Bold" Text="Trusted leaves (hub mode)" />
+                            <ListBox x:Name="listBox3" Height="180">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem x:Name="ctxRemoveLeaf" Header="Remove" Click="RemoveTrustedLeaf" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                            </ListBox>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Classes="card">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="label27" Text="Trusted leaf identifier:" />
+                            <TextBox x:Name="textBox8" Height="60" TextWrapping="Wrap" />
+                            <Button x:Name="button7" Content="Add" MinWidth="70" HorizontalAlignment="Left" Click="button7_Click" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Grid.Row="1" Classes="card" Margin="0,10,0,0">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                <TextBlock x:Name="label24" Text="Link mode:" VerticalAlignment="Center" />
+                                <ComboBox x:Name="comboBox4" Grid.Column="1" Width="140" SelectionChanged="comboBox4_SelectionChanged">
+                                    <ComboBoxItem Content="Disabled" />
+                                    <ComboBoxItem Content="Hub" />
+                                    <ComboBoxItem Content="Leaf" />
+                                </ComboBox>
+                            </Grid>
+                            <TextBlock x:Name="label25" Text="Your leaf identifier:" />
+                            <TextBox x:Name="textBox7" Height="60" IsReadOnly="True" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                <CheckBox x:Name="checkBox20" Content="Auto reconnect" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox21" Content="Allow linked admin" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== ADVANCED ===================== -->
+            <TabItem x:Name="advanced" Header="Advanced">
+                <ScrollViewer>
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" Margin="0">
+                        <!-- Ban lists -->
+                        <Border Grid.Column="0" Grid.Row="0" Classes="card" Margin="0,0,10,10">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="label10" FontWeight="Bold" Text="Ban lists" />
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label11" Text="Interval:" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                        <svc:SpinBox x:Name="numericUpDown1" Minimum="1" Maximum="96" Width="80" Height="26"
+                                                     Value="1" ValueChanged="numericUpDown1_ValueChanged" />
+                                        <TextBlock x:Name="label19" Text="hours" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+                                <CheckBox x:Name="checkBox13" Content="Auto clear bans" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Captcha -->
+                        <Border Grid.Column="1" Grid.Row="0" Classes="card" Margin="0,0,0,10">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="label8" FontWeight="Bold" Text="Captcha" />
+                                <CheckBox x:Name="checkBox8" Content="Captcha enabled" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label13" Text="Mode:" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="comboBox2" Grid.Column="1" Width="120" SelectionChanged="CaptchaModeSelectionChanged">
+                                        <ComboBoxItem Content="Regular" />
+                                        <ComboBoxItem Content="Quarantine" />
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Restrictions -->
+                        <Border Grid.Column="0" Grid.Row="1" Classes="card" Margin="0,0,10,10">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="label12" FontWeight="Bold" Text="Restrictions" />
+                                <CheckBox x:Name="checkBox17" Content="Enable age restriction" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label14" Text="Minimum age:" VerticalAlignment="Center" />
+                                    <svc:SpinBox x:Name="numericUpDown2" Grid.Column="1" Minimum="1" Maximum="99" Width="80" Height="26"
+                                                 Value="18" ValueChanged="numericUpDown2_ValueChanged" />
+                                </Grid>
+                                <TextBlock x:Name="label15" FontWeight="SemiBold" Text="Gender" />
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <CheckBox x:Name="checkBox15" Content="Reject male" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                    <CheckBox x:Name="checkBox14" Content="Reject female" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                    <CheckBox x:Name="checkBox16" Content="Reject unknown" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Scripting -->
+                        <Border Grid.Column="1" Grid.Row="1" Classes="card" Margin="0,0,0,10">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="label7" FontWeight="Bold" Text="Scripting" />
+                                <CheckBox x:Name="checkBox11" Content="Enable javascript engine" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox12" Content="Enable in-room scripting" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label6" Text="Scripting level:" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="comboBox1" Grid.Column="1" Width="130" SelectionChanged="ScriptLevelSelectionChanged">
+                                        <ComboBoxItem Content="Moderator" />
+                                        <ComboBoxItem Content="Administrator" />
+                                        <ComboBoxItem Content="Host" />
+                                        <ComboBoxItem Content="Room Owner" />
+                                    </ComboBox>
+                                </Grid>
+                                <CheckBox x:Name="checkBox30" Content="Scripts can change level" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Network -->
+                        <Border Grid.Column="0" Grid.Row="2" Classes="card" Margin="0,0,10,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="label9" FontWeight="Bold" Text="Advanced settings" />
+                                <CheckBox x:Name="checkBox7" Content="Enable file browsing" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox23" Content="Enable room search" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox18" Content="Hide IP addresses" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                                <CheckBox x:Name="checkBox19" Content="Local clients auto login" Checked="CheckBoxChecked" Unchecked="CheckBoxChecked" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Misc -->
+                        <Border Grid.Column="1" Grid.Row="2" Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock x:Name="label16" Text="Live Scripts Endpoint:" />
+                                <TextBox x:Name="textBox5" TextChanged="TextBoxTextChanged" />
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label17" Text="UDP host address:" VerticalAlignment="Center" />
+                                    <TextBox x:Name="textBox6" Grid.Column="1" TextChanged="TextBoxTextChanged" />
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                    <TextBlock x:Name="label18" Text="Preferred language:" VerticalAlignment="Center" />
+                                    <ComboBox x:Name="comboBox3" Grid.Column="1" Width="160" SelectionChanged="comboBox3_SelectionChanged">
+                                        <ComboBoxItem Content="Arabic" />
+                                        <ComboBoxItem Content="Chinese" />
+                                        <ComboBoxItem Content="Czech" />
+                                        <ComboBoxItem Content="Danish" />
+                                        <ComboBoxItem Content="Dutch" />
+                                        <ComboBoxItem Content="English" />
+                                        <ComboBoxItem Content="Finnish" />
+                                        <ComboBoxItem Content="French" />
+                                        <ComboBoxItem Content="German" />
+                                        <ComboBoxItem Content="Italian" />
+                                        <ComboBoxItem Content="Japanese" />
+                                        <ComboBoxItem Content="Kirghiz" />
+                                        <ComboBoxItem Content="Polish" />
+                                        <ComboBoxItem Content="Portuguese" />
+                                        <ComboBoxItem Content="Russian" />
+                                        <ComboBoxItem Content="Slovak" />
+                                        <ComboBoxItem Content="Spanish" />
+                                        <ComboBoxItem Content="Swedish" />
+                                        <ComboBoxItem Content="Turkish" />
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===================== PROXY ===================== -->
+            <TabItem x:Name="proxy" Header="Proxy">
+                <Border Classes="card">
+                    <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,Auto" Margin="0">
+                        <TextBlock x:Name="label28" Grid.ColumnSpan="2" FontWeight="Bold" Text="Trusted proxy IPs (localhost is always trusted)" Margin="0,0,0,10" />
+                        <ListBox x:Name="listBoxTrustedProxies" Grid.Row="1" Height="220">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem x:Name="ctxRemoveProxy" Header="Remove" Click="RemoveTrustedProxy_Click" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                        <StackPanel Grid.Column="1" Grid.Row="1" Margin="16,0,0,0" Spacing="8" Width="230">
+                            <TextBlock x:Name="label29" Text="Proxy IP address:" />
+                            <TextBox x:Name="textBoxProxyIP" />
+                            <Button x:Name="buttonAddProxy" Content="Add" MinWidth="70" HorizontalAlignment="Left" Click="buttonAddProxy_Click" />
+                            <TextBlock Foreground="{DynamicResource AppTextSecondary}" FontSize="12" TextWrapping="Wrap"
+                                       Text="Add the IP addresses of your reverse proxy servers here. The server will read the X-Forwarded-For / X-Real-IP headers from trusted proxies." />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </TabItem>
+
+            <!-- ===================== AVATARS ===================== -->
+            <TabItem x:Name="avatars" Header="Avatars">
+                <Grid ColumnDefinitions="*,*" Margin="0">
+                    <Border Classes="card" Grid.Column="0" Margin="0,0,10,0">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center">
+                            <TextBlock x:Name="label20" FontWeight="Bold" Text="Server avatar:" HorizontalAlignment="Center" />
+                            <Border Width="90" Height="90" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="6">
+                                <Image x:Name="image1" Width="90" Height="90" Stretch="Uniform" />
+                            </Border>
+                            <Button x:Name="button5" Content="Update" MinWidth="90" Click="button5_Click" />
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="card" Grid.Column="1">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center">
+                            <TextBlock x:Name="label21" FontWeight="Bold" Text="Default avatar:" HorizontalAlignment="Center" />
+                            <Border Width="90" Height="90" BorderBrush="{DynamicResource AppBorder}" BorderThickness="1" CornerRadius="6">
+                                <Image x:Name="image2" Width="90" Height="90" Stretch="Uniform" />
+                            </Border>
+                            <Button x:Name="button6" Content="Update" MinWidth="90" Click="button6_Click" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== EXTENSIONS ===================== -->
+            <TabItem x:Name="plugins" Header="Extensions">
+                <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*,*" Margin="0">
+                    <Border Grid.ColumnSpan="2" Grid.Row="0" Classes="card" Margin="0,0,0,10">
+                        <TextBlock x:Name="extNotice" FontWeight="SemiBold" Foreground="{DynamicResource AppTextSecondary}"
+                                   Text="Extension GUI is not available yet. You can still install / uninstall extensions below." />
+                    </Border>
+                    <Border Grid.Column="0" Grid.Row="1" Classes="card" Margin="0,0,10,0">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="label22" FontWeight="Bold" Text="Available:" />
+                            <ListBox x:Name="listBox1" Height="180" DoubleTapped="PluginInstallDoubleClicked" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Grid.Row="1" Classes="card">
+                        <StackPanel Spacing="8">
+                            <TextBlock FontWeight="Bold" Text="Installed" />
+                            <ListBox x:Name="listBox2" Height="180" SelectionChanged="ExtensionGUISelectionChanged">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem x:Name="ctxUninstallExt" Header="Uninstall" Click="UninstallExtension" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                            </ListBox>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                        <TextBlock x:Name="label23" Foreground="{DynamicResource AppAccent}" Cursor="Hand"
+                                   Text="Refresh..." Tapped="RefreshExtensions" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- ===================== STATUS BAR ===================== -->
+        <Border Grid.Row="1" Background="{DynamicResource AppStatusBarBackground}"
+                BorderBrush="{DynamicResource AppBorder}" BorderThickness="0,1,0,0" Padding="12,6">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock x:Name="statusBar" Text="Ready" VerticalAlignment="Center"
+                           Foreground="{DynamicResource AppTextSecondary}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="btnTheme" MinWidth="34" Height="28" Padding="6" ToolTip.Tip="Toggle dark / light theme" Click="btnTheme_Click">
+                        <Button.Content>
+                            <Path Width="16" Height="16" Stretch="Uniform"
+                                  Fill="{DynamicResource AppText}"
+                                  Data="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z" />
+                        </Button.Content>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

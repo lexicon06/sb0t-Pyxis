@@ -1,0 +1,261 @@
+@page "/advanced"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="card">
+    <h1>@L.T("AdvancedSettings")</h1>
+
+    <div class="grid2">
+        <div>
+            <h2>@L.T("BanLists")</h2>
+            <div class="form-row">
+                <label>@L.T("AutoClearInterval")</label>
+                <input type="number" @bind="BanInterval" />
+            </div>
+            <label class="form-row">
+                <input type="checkbox" @bind="AutoClearBans" style="width:auto;" /> @L.T("AutoClearBans")
+            </label>
+
+            <h2>@L.T("Restrictions")</h2>
+            <label class="form-row">
+                <input type="checkbox" @bind="AgeRestrict" style="width:auto;" /> @L.T("EnableAgeRestriction")
+            </label>
+            <div class="form-row">
+                <label>@L.T("MinimumAge")</label>
+                <input type="number" @bind="MinAge" />
+            </div>
+            <label class="form-row"><input type="checkbox" @bind="RejectMale" style="width:auto;" /> @L.T("RejectMale")</label>
+            <label class="form-row"><input type="checkbox" @bind="RejectFemale" style="width:auto;" /> @L.T("RejectFemale")</label>
+            <label class="form-row"><input type="checkbox" @bind="RejectUnknown" style="width:auto;" /> @L.T("RejectUnknown")</label>
+        </div>
+
+        <div>
+            <h2>@L.T("Captcha")</h2>
+            <label class="form-row">
+                <input type="checkbox" @bind="CaptchaEnabled" style="width:auto;" /> @L.T("CaptchaEnabled")
+            </label>
+            <div class="form-row">
+                <label>@L.T("Mode")</label>
+                <select style="width:100%;" @bind="CaptchaMode">
+                    <option value="0">@L.T("Regular")</option>
+                    <option value="1">@L.T("Quarantine")</option>
+                </select>
+            </div>
+
+            <h2>@L.T("Scripting")</h2>
+            <label class="form-row">
+                <input type="checkbox" @bind="ScriptingEnabled" style="width:auto;" /> @L.T("EnableJsEngine")
+            </label>
+            <label class="form-row">
+                <input type="checkbox" @bind="InRoomScripting" style="width:auto;" /> @L.T("EnableInRoomScripting")
+            </label>
+            <div class="form-row">
+                <label>@L.T("ScriptingLevel")</label>
+                <select style="width:100%;" @bind="ScriptLevel">
+                    <option value="0">Moderator</option>
+                    <option value="1">Administrator</option>
+                    <option value="2">Host</option>
+                    <option value="3">Room Owner</option>
+                </select>
+            </div>
+            <label class="form-row">
+                <input type="checkbox" @bind="ScriptCanLevel" style="width:auto;" /> @L.T("ScriptsCanChangeLevel")
+            </label>
+        </div>
+
+        <div>
+            <h2>@L.T("ServerOptions")</h2>
+            <label class="form-row">
+                <input type="checkbox" @bind="FileBrowsing" style="width:auto;" /> @L.T("EnableFileBrowsing")
+            </label>
+            <label class="form-row">
+                <input type="checkbox" @bind="RoomSearch" style="width:auto;" /> @L.T("EnableRoomSearch")
+            </label>
+            <label class="form-row">
+                <input type="checkbox" @bind="HideIps" style="width:auto;" /> @L.T("HideIPs")
+            </label>
+            <label class="form-row">
+                <input type="checkbox" @bind="LocalAutoLogin" style="width:auto;" /> @L.T("LocalAutoLogin")
+            </label>
+        </div>
+
+        <div>
+            <h2>@L.T("Network")</h2>
+            <div class="form-row">
+                <label>@L.T("LseEndpoint")</label>
+                <input type="text" @bind="LseEndpoint" />
+            </div>
+            <div class="form-row">
+                <label>@L.T("UdpAddress")</label>
+                <input type="text" @bind="UdpAddress" />
+            </div>
+            <div class="form-row">
+                <label>@L.T("PreferredLanguage")</label>
+                <select style="width:100%;" @bind="LanguageIndex">
+                    <option value="0">Arabic</option>
+                    <option value="1">Chinese</option>
+                    <option value="2">Czech</option>
+                    <option value="3">Danish</option>
+                    <option value="4">Dutch</option>
+                    <option value="5">English</option>
+                    <option value="6">Finnish</option>
+                    <option value="7">French</option>
+                    <option value="8">German</option>
+                    <option value="9">Italian</option>
+                    <option value="10">Japanese</option>
+                    <option value="11">Kirghiz</option>
+                    <option value="12">Polish</option>
+                    <option value="13">Portuguese</option>
+                    <option value="14">Russian</option>
+                    <option value="15">Slovak</option>
+                    <option value="16">Spanish</option>
+                    <option value="17">Swedish</option>
+                    <option value="18">Turkish</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn" @onclick="Save">@L.T("SaveAll")</button>
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <p class="success-msg">@Message</p>
+    }
+</div>
+
+@code {
+    private int BanInterval = 1;
+    private bool AutoClearBans = false;
+    private bool AgeRestrict = false;
+    private int MinAge = 18;
+    private bool RejectMale = false;
+    private bool RejectFemale = false;
+    private bool RejectUnknown = false;
+    private bool CaptchaEnabled = false;
+    private string CaptchaMode = "0";
+    private bool ScriptingEnabled = false;
+    private bool InRoomScripting = false;
+    private string ScriptLevel = "3";
+    private bool ScriptCanLevel = false;
+    private bool FileBrowsing = false;
+    private bool RoomSearch = false;
+    private bool HideIps = false;
+    private bool LocalAutoLogin = false;
+    private string LseEndpoint = "";
+    private string UdpAddress = "";
+    private int LanguageIndex = 5;
+    private string Message = "";
+
+    protected override void OnInitialized()
+    {
+        BanInterval = Server.Get<int>("auto_ban_clear_interval");
+        AutoClearBans = Server.Get<bool>("auto_ban_clear_enabled");
+        AgeRestrict = Server.Get<bool>("age_restrict");
+        MinAge = Server.Get<int>("age_restrict_value");
+        RejectMale = Server.Get<bool>("reject_male");
+        RejectFemale = Server.Get<bool>("reject_female");
+        RejectUnknown = Server.Get<bool>("reject_unknown");
+        CaptchaEnabled = Server.Get<bool>("captcha");
+        CaptchaMode = Server.Get<int>("captcha_mode").ToString();
+        ScriptingEnabled = Server.Get<bool>("scripting");
+        InRoomScripting = Server.Get<bool>("inroom_scripting");
+        byte lvl = Server.Get<byte>("inroom_level");
+        ScriptLevel = (lvl == 0 ? 3 : lvl - 1).ToString();
+        ScriptCanLevel = Server.Get<bool>("script_can_level");
+        FileBrowsing = Server.Get<bool>("files");
+        RoomSearch = Server.Get<bool>("roomsearch");
+        HideIps = Server.Get<bool>("hide_ips");
+        LocalAutoLogin = Server.Get<bool>("local_host");
+        LseEndpoint = Server.Get<string>("url", "lse");
+        byte[] udp = Server.Get<byte[]>("udp_address");
+        UdpAddress = udp != null ? new System.Net.IPAddress(udp).ToString() : "0.0.0.0";
+        LanguageIndex = AresToIndex(Server.Get<byte>("language"));
+    }
+
+    private void Save()
+    {
+        Server.Set("auto_ban_clear_interval", BanInterval);
+        Server.Set("auto_ban_clear_enabled", AutoClearBans);
+        Server.Set("age_restrict", AgeRestrict);
+        Server.Set("age_restrict_value", MinAge);
+        Server.Set("reject_male", RejectMale);
+        Server.Set("reject_female", RejectFemale);
+        Server.Set("reject_unknown", RejectUnknown);
+        Server.Set("captcha", CaptchaEnabled);
+        int mode;
+        if (int.TryParse(CaptchaMode, out mode))
+            Server.Set("captcha_mode", mode);
+        Server.Set("scripting", ScriptingEnabled);
+        Server.Set("inroom_scripting", InRoomScripting);
+        int sl;
+        if (int.TryParse(ScriptLevel, out sl))
+            Server.Set("inroom_level", (byte)(sl + 1));
+        Server.Set("script_can_level", ScriptCanLevel);
+        Server.Set("files", FileBrowsing);
+        Server.Set("roomsearch", RoomSearch);
+        Server.Set("hide_ips", HideIps);
+        Server.Set("local_host", LocalAutoLogin);
+        Server.Set("url", LseEndpoint, "lse");
+        System.Net.IPAddress ip;
+        if (System.Net.IPAddress.TryParse(UdpAddress, out ip))
+            Server.Set("udp_address", ip.GetAddressBytes());
+        Server.Set("language", IndexToAres(LanguageIndex));
+        Message = L.T("Saved");
+    }
+
+    private static int AresToIndex(byte lang)
+    {
+        if (lang == 0) lang = 10;
+        switch (lang)
+        {
+            case 11: return 0;
+            case 12: return 1;
+            case 14: return 2;
+            case 15: return 3;
+            case 16: return 4;
+            case 10: return 5;
+            case 27: return 6;
+            case 28: return 7;
+            case 29: return 8;
+            case 30: return 9;
+            case 17: return 10;
+            case 19: return 11;
+            case 20: return 12;
+            case 21: return 13;
+            case 31: return 14;
+            case 22: return 15;
+            case 23: return 16;
+            case 25: return 17;
+            case 26: return 18;
+            default: return 5;
+        }
+    }
+
+    private static byte IndexToAres(int index)
+    {
+        switch (index)
+        {
+            case 0: return 11;
+            case 1: return 12;
+            case 2: return 14;
+            case 3: return 15;
+            case 4: return 16;
+            case 5: return 10;
+            case 6: return 27;
+            case 7: return 28;
+            case 8: return 29;
+            case 9: return 30;
+            case 10: return 17;
+            case 11: return 19;
+            case 12: return 20;
+            case 13: return 21;
+            case 14: return 31;
+            case 15: return 22;
+            case 16: return 23;
+            case 17: return 25;
+            case 18: return 26;
+            default: return 10;
+        }
+    }
+}

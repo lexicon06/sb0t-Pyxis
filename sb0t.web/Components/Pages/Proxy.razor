@@ -1,0 +1,70 @@
+@page "/proxy"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="card" style="max-width:720px;">
+    <h1>@L.T("TrustedProxies")</h1>
+    <p class="sub">@L.T("ProxyHint")</p>
+
+    <div class="form-row" style="max-width:420px;">
+        <label>@L.T("ProxyIp")</label>
+        <input type="text" @bind="IpInput" placeholder="e.g. 10.0.0.1" />
+    </div>
+    <button class="btn" @onclick="Add">@L.T("Add")</button>
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="login-error">@Error</div>
+    }
+
+    <table style="margin-top:16px;">
+        <thead><tr><th>IP</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var ip in _proxies)
+            {
+                <tr>
+                    <td>@ip</td>
+                    <td style="width:80px;">
+                        <button class="btn danger" style="padding:4px 10px;font-size:12px;" @onclick="() => Remove(ip)">@L.T("Remove")</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (!_proxies.Any())
+    {
+        <p class="sub">@L.T("NoProxies")</p>
+    }
+</div>
+
+@code {
+    private List<string> _proxies = new();
+    private string IpInput = "";
+    private string Error = "";
+
+    protected override void OnInitialized()
+    {
+        _proxies = Server.TrustedProxies.ToList();
+    }
+
+    private void Add()
+    {
+        Error = "";
+        string ip = IpInput.Trim();
+        if (string.IsNullOrEmpty(ip)) return;
+        if (IPAddress.TryParse(ip, out var parsed))
+        {
+            Server.AddTrustedProxy(parsed.ToString());
+            IpInput = "";
+            _proxies = Server.TrustedProxies.ToList();
+        }
+        else
+            Error = L.T("InvalidIp");
+    }
+
+    private void Remove(string ip)
+    {
+        Server.RemoveTrustedProxy(ip);
+        _proxies = Server.TrustedProxies.ToList();
+    }
+}

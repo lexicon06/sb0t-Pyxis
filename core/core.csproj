@@ -1,0 +1,213 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>core</RootNamespace>
+    <AssemblyName>core</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>$(NoWarn);CS0168;CS0414;CS0067;CS0649;CS0414;CS0219;NU1701</NoWarn>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Account.cs" />
+    <Compile Include="AccountManager.cs" />
+    <Compile Include="AresClient.cs" />
+    <Compile Include="AresFont.cs" />
+    <Compile Include="Avatars.cs" />
+    <Compile Include="Ban.cs" />
+    <Compile Include="BanSystem.cs" />
+    <Compile Include="CaptchaManager.cs" />
+    <Compile Include="DataPaths.cs" />
+    <Compile Include="ChatLog.cs" />
+    <Compile Include="Crypto.cs" />
+    <Compile Include="DoOnce.cs" />
+    <Compile Include="Events.cs" />
+    <Compile Include="Extensions\ExAccounts.cs" />
+    <Compile Include="Extensions\ExChannels.cs" />
+    <Compile Include="Extensions\ExCompression.cs" />
+    <Compile Include="Extensions\ExHashlink.cs" />
+    <Compile Include="Extensions\ExPlugin.cs" />
+    <Compile Include="Extensions\ExRoom.cs" />
+    <Compile Include="Extensions\ExScripting.cs" />
+    <Compile Include="Extensions\ExSpelling.cs" />
+    <Compile Include="Extensions\ExStats.cs" />
+    <Compile Include="Extensions\ExtensionManager.cs" />
+    <Compile Include="FilterImporter.cs" />
+    <Compile Include="FloodControl.cs" />
+    <Compile Include="FloodRecord.cs" />
+    <Compile Include="ib0t\CustomData.cs" />
+    <Compile Include="IdleManager.cs" />
+    <Compile Include="IgnoreManager.cs" />
+    <Compile Include="ImageUtils.cs" />
+    <Compile Include="LinkHub\HubOutbound.cs" />
+    <Compile Include="LinkHub\Leaf.cs" />
+    <Compile Include="LinkHub\LeafPool.cs" />
+    <Compile Include="LinkHub\HubProcessor.cs" />
+    <Compile Include="LinkHub\LinkError.cs" />
+    <Compile Include="LinkHub\LinkLogin.cs" />
+    <Compile Include="LinkHub\LinkMode.cs" />
+    <Compile Include="LinkHub\LinkMsg.cs" />
+    <Compile Include="LinkHub\LinkPacket.cs" />
+    <Compile Include="LinkHub\TrustedLeafItem.cs" />
+    <Compile Include="LinkHub\TrustedLeavesManager.cs" />
+    <Compile Include="LinkHub\LinkUser.cs" />
+    <Compile Include="LinkLeaf\Leaf.cs" />
+    <Compile Include="LinkLeaf\LeafOutbound.cs" />
+    <Compile Include="LinkLeaf\LeafProcessor.cs" />
+    <Compile Include="LinkLeaf\LinkClient.cs" />
+    <Compile Include="LinkLeaf\LinkError.cs" />
+    <Compile Include="LinkLeaf\LinkLogin.cs" />
+    <Compile Include="LinkLeaf\LinkUser.cs" />
+    <Compile Include="ObSalt.cs" />
+    <Compile Include="Prototypes.cs" />
+    <Compile Include="Extensions\ExHost.cs" />
+    <Compile Include="Extensions\ExUsers.cs" />
+    <Compile Include="FileBrowseProcessor.cs" />
+    <Compile Include="Hashlink.cs" />
+    <Compile Include="Helpers.cs" />
+    <Compile Include="ib0t\Html5RequestEventArgs.cs" />
+    <Compile Include="ib0t\ib0tClient.cs" />
+    <Compile Include="ib0t\WebOutbound.cs" />
+    <Compile Include="ib0t\WebProcessor.cs" />
+    <Compile Include="ib0t\WebSockets.cs" />
+    <Compile Include="IClient.cs" />
+    <Compile Include="PartedClient.cs" />
+    <Compile Include="PMEventArgs.cs" />
+    <Compile Include="PrivateMsg.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Proxies.cs" />
+    <Compile Include="Resource1.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resource1.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Room.cs" />
+    <Compile Include="ServerCore.cs" />
+    <Compile Include="Settings.cs" />
+    <Compile Include="SharedFile.cs" />
+    <Compile Include="SpellCheck.cs" />
+    <Compile Include="Stats.cs" />
+    <Compile Include="TCPAdvancedProcessor.cs" />
+    <Compile Include="TCPMsg.cs" />
+    <Compile Include="TCPOutbound.cs" />
+    <Compile Include="TCPPacket.cs" />
+    <Compile Include="TCPPacketReader.cs" />
+    <Compile Include="TCPPacketWriter.cs" />
+    <Compile Include="TCPProcessor.cs" />
+    <Compile Include="Time.cs" />
+    <Compile Include="TrustedProxyManager.cs" />
+    <Compile Include="Udp\FirewallTest.cs" />
+    <Compile Include="Udp\MyFirewallTester.cs" />
+    <Compile Include="Udp\SupabaseChatroomModel.cs" />
+    <Compile Include="Udp\SupabaseClient.cs" />
+    <Compile Include="Udp\UdpChannelItem.cs" />
+    <Compile Include="Udp\UdpChannelList.cs" />
+    <Compile Include="Udp\UdpListener.cs" />
+    <Compile Include="Udp\UdpItem.cs" />
+    <Compile Include="Udp\UdpMsg.cs" />
+    <Compile Include="Udp\UdpNode.cs" />
+    <Compile Include="Udp\UdpNodeManager.cs" />
+    <Compile Include="Udp\UdpOutbound.cs" />
+    <Compile Include="Udp\UdpPacketReader.cs" />
+    <Compile Include="Udp\UdpPacketWriter.cs" />
+    <Compile Include="Udp\UdpProcessor.cs" />
+    <Compile Include="Udp\UdpStats.cs" />
+    <Compile Include="UserHistory.cs" />
+    <Compile Include="UserLinkCredentials.cs" />
+    <Compile Include="UserPool.cs" />
+    <Compile Include="UserScribbleRoomObject.cs" />
+    <Compile Include="WebWorker.cs" />
+    <Compile Include="Zip.cs" />
+    <Compile Include="Udp\UdpFilter.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resource1.resx" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\captcha\captcha.csproj" />
+    <ProjectReference Include="..\commands\commands.csproj" />
+    <ProjectReference Include="..\iconnect\iconnect.csproj" />
+    <ProjectReference Include="..\scripting\scripting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Heijden.Dns">
+      <HintPath>..\packages\Heijden.Dns.2.0.0\lib\net35\Heijden.Dns.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>Libraries\ICSharpCode.SharpZipLib.dll</HintPath>
+    </Reference>
+    <Reference Include="MimeMapping">
+      <HintPath>..\packages\MimeMapping.3.0.1\lib\netstandard2.0\MimeMapping.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\netstandard2.0\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase">
+      <HintPath>..\packages\Supabase.1.0.0\lib\netstandard2.0\Supabase.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase.Core">
+      <HintPath>..\packages\Supabase.Core.1.0.0\lib\netstandard2.0\Supabase.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase.Functions">
+      <HintPath>..\packages\Supabase.Functions.2.0.0\lib\netstandard2.0\Supabase.Functions.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase.Gotrue">
+      <HintPath>..\packages\Supabase.Gotrue.5.0.0\lib\netstandard2.0\Supabase.Gotrue.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase.Postgrest">
+      <HintPath>..\packages\Supabase.Postgrest.4.0.0\lib\netstandard2.0\Supabase.Postgrest.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase.Realtime">
+      <HintPath>..\packages\Supabase.Realtime.7.0.0\lib\netstandard2.0\Supabase.Realtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Supabase.Storage">
+      <HintPath>..\packages\Supabase.Storage.2.0.0\lib\netstandard2.0\Supabase.Storage.dll</HintPath>
+    </Reference>
+    <Reference Include="System.IdentityModel.Tokens.Jwt">
+      <HintPath>..\packages\System.IdentityModel.Tokens.Jwt.7.5.1\lib\netstandard2.0\System.IdentityModel.Tokens.Jwt.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.IdentityModel.Abstractions">
+      <HintPath>..\packages\Microsoft.IdentityModel.Abstractions.7.5.1\lib\netstandard2.0\Microsoft.IdentityModel.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.IdentityModel.JsonWebTokens">
+      <HintPath>..\packages\Microsoft.IdentityModel.JsonWebTokens.7.5.1\lib\netstandard2.0\Microsoft.IdentityModel.JsonWebTokens.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.IdentityModel.Logging">
+      <HintPath>..\packages\Microsoft.IdentityModel.Logging.7.5.1\lib\netstandard2.0\Microsoft.IdentityModel.Logging.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.IdentityModel.Tokens">
+      <HintPath>..\packages\Microsoft.IdentityModel.Tokens.7.5.1\lib\netstandard2.0\Microsoft.IdentityModel.Tokens.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Reactive">
+      <HintPath>..\packages\System.Reactive.5.0.0\lib\netstandard2.0\System.Reactive.dll</HintPath>
+    </Reference>
+    <Reference Include="Websocket.Client">
+      <HintPath>..\packages\Websocket.Client.4.7.0\lib\netstandard2.0\Websocket.Client.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+    <PackageReference Include="NHunspell" Version="1.2.5359.26126" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Libraries\Hunspellx86.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Libraries\dictionary.aff">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Libraries\dictionary.dic">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="Resources\fi.dat" />
+    <None Include="Resources\sb0t.dat" />
+    <None Include="Resources\servers.dat" />
+    <None Include="Resources\template.dat" />
+    <None Include="Resources\web.dat" />
+    <None Include="servers.dat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

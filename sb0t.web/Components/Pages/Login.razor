@@ -1,0 +1,58 @@
+@page "/login"
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor Http
+@inject LocalizationService L
+@inject IJSRuntime JS
+
+@{
+    var error = Http.HttpContext?.Request.Query["error"].ToString() == "1";
+}
+
+<div class="auth-wrap">
+    <h1>@L.T("LoginTitle")</h1>
+    <p>@L.T("LoginHint")</p>
+
+    <div style="display:flex;gap:4px;margin-bottom:16px;">
+        <button class="flag-btn @(L.IsSpanish ? "active" : "")" title="Español" @onclick="() => SetLang(true)"><CountryFlag Country="Country.ES" Size="FlagSize.Small" IsRounded="true" /></button>
+        <button class="flag-btn @(L.IsSpanish ? "" : "active")" title="English" @onclick="() => SetLang(false)"><CountryFlag Country="Country.GB" Size="FlagSize.Small" IsRounded="true" /></button>
+    </div>
+
+    <form method="post" action="/login">
+        <div class="form-row">
+            <label>@L.T("WebPanelPassword")</label>
+            <input type="password" name="password" autofocus />
+        </div>
+        @if (error)
+        {
+            <div class="login-error">@L.T("LoginError")</div>
+        }
+        <button class="btn" style="width:100%;margin-top:8px;" type="submit">@L.T("Login")</button>
+    </form>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var saved = await JS.InvokeAsync<string>("sb0tLang.get");
+                if (!string.IsNullOrEmpty(saved))
+                    L.ApplySaved(saved);
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private async Task SetLang(bool es)
+    {
+        L.SetLanguage(es);
+        try
+        {
+            await JS.InvokeVoidAsync("sb0tLang.set", es ? "es" : "en");
+        }
+        catch { }
+        StateHasChanged();
+    }
+}

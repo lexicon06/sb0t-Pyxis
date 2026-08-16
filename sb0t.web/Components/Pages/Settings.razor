@@ -1,0 +1,67 @@
+@page "/settings"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="card" style="max-width:640px;">
+    <h1>@L.T("SettingsTitle")</h1>
+    <p class="sub">@L.T("SettingsSub")</p>
+
+    <div class="form-row">
+        <label>@L.T("RoomName")</label>
+        <input type="text" @bind="RoomName" />
+    </div>
+    <div class="form-row">
+        <label>@L.T("RoomPort")</label>
+        <input type="number" @bind="RoomPort" />
+    </div>
+    <div class="form-row">
+        <label>@L.T("BotName")</label>
+        <input type="text" @bind="BotName" />
+    </div>
+    <div class="form-row">
+        <label>@L.T("OwnerPasswordRoom")</label>
+        <input type="text" @bind="OwnerPassword" />
+    </div>
+    <div class="form-row">
+        <label>@L.T("WebPasswordField")</label>
+        <input type="text" @bind="WebPassword" />
+    </div>
+
+    <button class="btn" @onclick="Save">@L.T("Save")</button>
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <p class="success-msg">@Message</p>
+    }
+</div>
+
+@code {
+    private string RoomName = "";
+    private string RoomPort = "";
+    private string BotName = "";
+    private string OwnerPassword = "";
+    private string WebPassword = "";
+    private string Message = "";
+
+    protected override void OnInitialized()
+    {
+        RoomName = core.Settings.Get<string>("name");
+        RoomPort = core.Settings.Get<ushort>("port").ToString();
+        BotName = core.Settings.Get<string>("bot");
+        OwnerPassword = core.Settings.Get<string>("owner");
+        WebPassword = Server.WebPassword;
+    }
+
+    private void Save()
+    {
+        core.Settings.Set("name", RoomName);
+        ushort port;
+        if (ushort.TryParse(RoomPort, out port))
+            core.Settings.Set("port", port);
+        core.Settings.Set("bot", BotName);
+        core.Settings.Set("owner", OwnerPassword);
+        if (!string.IsNullOrEmpty(WebPassword))
+            Server.WebPassword = WebPassword;
+        Message = L.T("Saved");
+    }
+}

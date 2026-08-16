@@ -1,0 +1,103 @@
+@page "/avatars"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="grid2">
+    <div class="card" style="text-align:center;">
+        <h1>@L.T("ServerAvatar")</h1>
+        <p class="sub">@L.T("ServerAvatarSub")</p>
+        <div class="avatar-preview">
+            @if (!string.IsNullOrEmpty(ServerAvatarData))
+            {
+                <img src="@ServerAvatarData" alt="server avatar" />
+            }
+            else
+            {
+                <span class="avatar-placeholder">-</span>
+            }
+        </div>
+        <div style="margin-top:14px;">
+            <InputFile OnChange="OnServerAvatar" accept="image/*" />
+        </div>
+        @if (!string.IsNullOrEmpty(ServerMsg))
+        {
+            <p class="success-msg">@ServerMsg</p>
+        }
+    </div>
+
+    <div class="card" style="text-align:center;">
+        <h1>@L.T("DefaultAvatar")</h1>
+        <p class="sub">@L.T("DefaultAvatarSub")</p>
+        <div class="avatar-preview">
+            @if (!string.IsNullOrEmpty(DefaultAvatarData))
+            {
+                <img src="@DefaultAvatarData" alt="default avatar" />
+            }
+            else
+            {
+                <span class="avatar-placeholder">-</span>
+            }
+        </div>
+        <div style="margin-top:14px;">
+            <InputFile OnChange="OnDefaultAvatar" accept="image/*" />
+        </div>
+        @if (!string.IsNullOrEmpty(DefaultMsg))
+        {
+            <p class="success-msg">@DefaultMsg</p>
+        }
+    </div>
+</div>
+
+@code {
+    private string ServerMsg = "";
+    private string DefaultMsg = "";
+    private string ServerAvatarData = "";
+    private string DefaultAvatarData = "";
+
+    protected override void OnInitialized()
+    {
+        ReloadAvatars();
+    }
+
+    private void ReloadAvatars()
+    {
+        var sa = Server.GetServerAvatar();
+        ServerAvatarData = sa != null ? "data:image/jpeg;base64," + Convert.ToBase64String(sa) : "";
+
+        var da = Server.GetDefaultAvatar();
+        DefaultAvatarData = da != null ? "data:image/jpeg;base64," + Convert.ToBase64String(da) : "";
+    }
+
+    private async Task OnServerAvatar(InputFileChangeEventArgs e)
+    {
+        ServerMsg = "";
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream().CopyToAsync(ms);
+            byte[] raw = ms.ToArray();
+            byte[] resized = sb0t.web.Services.WebImage.ResizeToJpeg(raw, 90, 90);
+            Server.UpdateServerAvatar(resized);
+            ServerMsg = L.T("ServerAvatarUpdated");
+            ReloadAvatars();
+        }
+        catch { ServerMsg = L.T("AvatarFailed"); }
+    }
+
+    private async Task OnDefaultAvatar(InputFileChangeEventArgs e)
+    {
+        DefaultMsg = "";
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream().CopyToAsync(ms);
+            byte[] raw = ms.ToArray();
+            byte[] resized = sb0t.web.Services.WebImage.ResizeToJpeg(raw, 90, 90);
+            Server.UpdateDefaultAvatar(resized);
+            DefaultMsg = L.T("DefaultAvatarUpdated");
+            ReloadAvatars();
+        }
+        catch { DefaultMsg = L.T("AvatarFailed"); }
+    }
+}

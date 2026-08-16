@@ -1,0 +1,99 @@
+﻿@inherits LayoutComponentBase
+@inject ServerAuthStateProvider Auth
+@inject NavigationManager Nav
+@inject LocalizationService L
+@inject IJSRuntime JS
+
+<div class="layout">
+    @if (menuOpen)
+    {
+        <div class="menu-overlay" @onclick="CloseMenu"></div>
+    }
+    <header class="topbar">
+        <span class="brand">sb0t Pyxis</span>
+        <button class="menu-toggle" @onclick="ToggleMenu" aria-label="Menu">☰</button>
+        <nav class="nav @(menuOpen ? "open" : "")" @onclick="CloseMenu">
+            <a href="/">@L.T("Status")</a>
+            <a href="/users">@L.T("Users")</a>
+            <a href="/bans">@L.T("Bans")</a>
+            <a href="/commands">@L.T("Admin")</a>
+            <a href="/advanced">@L.T("Advanced")</a>
+            <a href="/linking">@L.T("Linking")</a>
+            <a href="/proxy">@L.T("Proxy")</a>
+            <a href="/avatars">@L.T("Avatars")</a>
+            <a href="/settings">@L.T("Settings")</a>
+            <a href="/logs">@L.T("Logs")</a>
+        </nav>
+        <div class="lang-switch">
+            <button class="flag-btn @(L.IsSpanish ? "active" : "")" title="Español" @onclick="() => SetLang(true)"><CountryFlag Country="Country.ES" Size="FlagSize.Small" IsRounded="true" /></button>
+            <button class="flag-btn @(L.IsSpanish ? "" : "active")" title="English" @onclick="() => SetLang(false)"><CountryFlag Country="Country.GB" Size="FlagSize.Small" IsRounded="true" /></button>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <button class="btn-link" @onclick="Logout">@L.T("Logout")</button>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+    <main>
+        @Body
+    </main>
+</div>
+
+@code {
+    private bool menuOpen = false;
+
+    private void ToggleMenu()
+    {
+        menuOpen = !menuOpen;
+    }
+
+    private void CloseMenu()
+    {
+        if (menuOpen)
+        {
+            menuOpen = false;
+            StateHasChanged();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += (s, e) =>
+        {
+            menuOpen = false;
+            InvokeAsync(StateHasChanged);
+        };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var saved = await JS.InvokeAsync<string>("sb0tLang.get");
+                if (!string.IsNullOrEmpty(saved))
+                    L.ApplySaved(saved);
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private async Task SetLang(bool es)
+    {
+        L.SetLanguage(es);
+        try
+        {
+            await JS.InvokeVoidAsync("sb0tLang.set", es ? "es" : "en");
+        }
+        catch { }
+        StateHasChanged();
+    }
+
+    private async Task Logout()
+    {
+        await Auth.Logout();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

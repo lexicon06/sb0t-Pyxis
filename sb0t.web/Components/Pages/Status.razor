@@ -1,0 +1,138 @@
+@page "/"
+@attribute [Authorize]
+@inject ServerService Server
+@inject NavigationManager Nav
+@inject LocalizationService L
+@implements IDisposable
+
+<div class="card">
+    <h1>@L.T("ServerStatus")</h1>
+    <p class="sub">@L.T("ServerStatusSub")</p>
+
+    <div class="row" style="margin-bottom:6px;">
+        @if (Server.Running)
+        {
+            @if (Server.Server.Running)
+            {
+                <span class="badge running">@L.T("Running")</span>
+            }
+            else
+            {
+                <span class="badge running">@L.T("Running") (desktop app)</span>
+            }
+        }
+        else
+        {
+            <span class="badge stopped">@L.T("Stopped")</span>
+        }
+    </div>
+
+    <div class="row" style="margin-top:16px;">
+        @if (Server.Server.Running)
+        {
+            <button class="btn danger" @onclick="Stop">@L.T("StopServer")</button>
+        }
+        else if (Server.IsExternallyRunning() || Server.IsPortInUse())
+        {
+            <p class="sub" style="margin:0;">@(L.IsSpanish ? "El servidor está siendo ejecutado por la aplicación de escritorio." : "The server is being run by the desktop app.")</p>
+            <button class="btn danger" @onclick="Stop" style="margin-left:10px;">@L.T("StopServer")</button>
+        }
+        else
+        {
+            <button class="btn" @onclick="Start">@L.T("StartServer")</button>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="login-error" style="margin-top:14px;">@Error</div>
+    }
+</div>
+
+<div class="card">
+    <h1>@L.T("ConnectedUsers")</h1>
+    <p class="sub">@L.T("ConnectedUsersSub")</p>
+    <table>
+        <thead><tr><th>@L.T("Name")</th><th>@L.T("Level")</th><th>@L.T("IP")</th><th></th><th></th></tr></thead>
+        <tbody>
+            @foreach (var u in _users)
+            {
+                <tr>
+                    <td><b>@u.Name</b></td>
+                    <td>@u.Level</td>
+                    <td>@u.Ip</td>
+                    <td style="width:70px;"><button class="btn danger" style="padding:5px 12px;font-size:12px;" @onclick="() => Kick(u.Name)">@L.T("Kick")</button></td>
+                    <td style="width:70px;"><button class="btn danger" style="padding:5px 12px;font-size:12px;" @onclick="() => Ban(u.Name)">@L.T("Ban")</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (!_users.Any())
+    {
+        <p class="sub">@L.T("NoUsers")</p>
+    }
+</div>
+
+@code {
+    private string Error = "";
+    private List<UserRow> _users = new();
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        RefreshUsers();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new Timer(_ => SafeTick(), null, 2000, 2000);
+    }
+
+    private void SafeTick()
+    {
+        try
+        {
+            InvokeAsync(RefreshUsers);
+        }
+        catch (ObjectDisposedException) { }
+        catch { }
+    }
+
+    private void Start()
+    {
+        Error = "";
+        if (Server.Start())
+            StateHasChanged();
+        else
+            Error = L.IsSpanish ? "No se pudo iniciar el servidor. ¿Está la aplicación de escritorio abierta usando el mismo puerto?" : "Could not start server. Is the desktop app open using the same port?";
+    }
+
+    private void Stop()
+    {
+        Server.Stop();
+        StateHasChanged();
+    }
+
+    private void Kick(string name)
+    {
+        Server.Kick(name);
+        RefreshUsers();
+    }
+
+    private void Ban(string name)
+    {
+        Server.Ban(name);
+        RefreshUsers();
+    }
+
+    private void RefreshUsers()
+    {
+        _users = Server.Users.ToList();
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

@@ -1,0 +1,122 @@
+@page "/linking"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="grid2">
+    <div class="card">
+        <h1>@L.T("TrustedLeaves")</h1>
+        <table>
+            <thead><tr><th>@L.T("Name")</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var l in _leaves)
+                {
+                    <tr>
+                        <td>@l.Name</td>
+                        <td style="width:80px;">
+                            <button class="btn danger" style="padding:4px 10px;font-size:12px;" @onclick="() => Remove(l.Name)">@L.T("Remove")</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (!_leaves.Any())
+        {
+            <p class="sub">@L.T("NoLeaves")</p>
+        }
+    </div>
+
+    <div class="card">
+        <h1>@L.T("AddTrustedLeaf")</h1>
+        <div class="form-row">
+            <label>@L.T("LeafIdentifierInput")</label>
+            <input type="text" @bind="LeafInput" />
+        </div>
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="login-error">@Error</div>
+        }
+        <button class="btn" @onclick="Add">@L.T("Add")</button>
+    </div>
+</div>
+
+<div class="card">
+    <h1>@L.T("LinkingTitle")</h1>
+    <div class="form-row" style="max-width:360px;">
+        <label>@L.T("LinkMode")</label>
+        <select style="width:100%;" @bind="LinkMode">
+            <option value="0">@L.T("Disabled")</option>
+            <option value="1">@L.T("Hub")</option>
+            <option value="2">@L.T("Leaf")</option>
+        </select>
+    </div>
+    <div class="form-row">
+        <label>@L.T("YourLeafIdentifier")</label>
+        <textarea readonly style="width:100%;height:60px;">@_leafIdent</textarea>
+    </div>
+    <label class="form-row"><input type="checkbox" @bind="AutoReconnect" style="width:auto;" /> @L.T("AutoReconnect")</label>
+    <label class="form-row"><input type="checkbox" @bind="AllowLinkedAdmin" style="width:auto;" /> @L.T("AllowLinkedAdmin")</label>
+    <button class="btn" @onclick="SaveLink">@L.T("Save")</button>
+</div>
+
+@code {
+    private List<TrustedLeafRow> _leaves = new();
+    private string LeafInput = "";
+    private string Error = "";
+    private string _leafIdent = "";
+    private string LinkMode = "0";
+    private bool AutoReconnect = false;
+    private bool AllowLinkedAdmin = false;
+
+    protected override void OnInitialized()
+    {
+        _leaves = Server.TrustedLeaves.ToList();
+        _leafIdent = Server.LeafIdentifier;
+        LinkMode = Server.Get<int>("link_mode").ToString();
+        AutoReconnect = Server.Get<bool>("link_reconnect");
+        AllowLinkedAdmin = Server.Get<bool>("link_admin");
+    }
+
+    private void Add()
+    {
+        Error = "";
+        string text = LeafInput.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+        try
+        {
+            if (text.StartsWith("sblnk://"))
+                text = text.Substring(8);
+            byte[] buffer = Convert.FromBase64String(text);
+            Array.Reverse(buffer);
+            byte len = buffer[0];
+            string name = System.Text.Encoding.UTF8.GetString(buffer, 1, len);
+            Guid guid = new Guid(buffer.Skip(1 + len).ToArray());
+            if (Server.AddTrustedLeaf(name, guid))
+            {
+                LeafInput = "";
+                _leaves = Server.TrustedLeaves.ToList();
+            }
+            else
+                Error = L.T("LeafExists");
+        }
+        catch
+        {
+            Error = L.T("InvalidLeaf");
+        }
+    }
+
+    private void Remove(string name)
+    {
+        Server.RemoveTrustedLeaf(name);
+        _leaves = Server.TrustedLeaves.ToList();
+    }
+
+    private void SaveLink()
+    {
+        int mode;
+        if (int.TryParse(LinkMode, out mode))
+            Server.Set("link_mode", mode);
+        Server.Set("link_reconnect", AutoReconnect);
+        Server.Set("link_admin", AllowLinkedAdmin);
+    }
+}

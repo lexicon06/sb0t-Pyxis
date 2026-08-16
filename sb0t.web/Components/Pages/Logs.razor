@@ -1,0 +1,52 @@
+@page "/logs"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+@implements IDisposable
+
+<div class="card">
+    <h1>@L.T("ServerLog")</h1>
+    <button class="btn secondary" @onclick="Refresh">@L.T("Refresh")</button>
+    <div class="log-box">@string.Join("\n", _logs)</div>
+</div>
+
+@code {
+    private List<string> _logs = new();
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _timer = new Timer(_ => SafeTick(), null, 2000, 2000);
+    }
+
+    private void SafeTick()
+    {
+        try
+        {
+            InvokeAsync(Refresh);
+        }
+        catch (ObjectDisposedException) { }
+        catch { }
+    }
+
+    private void Refresh()
+    {
+        try
+        {
+            _logs = Server.RecentLogs(300).ToList();
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

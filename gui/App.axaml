@@ -1,0 +1,60 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="gui.App"
+             RequestedThemeVariant="Light">
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Base keys (mutated at runtime by ApplyTheme) -->
+            <SolidColorBrush x:Key="AppBackground" Color="#F5F7FB" />
+            <SolidColorBrush x:Key="AppCardBackground" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AppAccent" Color="#4F46E5" />
+            <SolidColorBrush x:Key="AppAccentHover" Color="#3730A3" />
+            <SolidColorBrush x:Key="AppAccentPressed" Color="#312E81" />
+            <SolidColorBrush x:Key="AppSuccess" Color="#10B981" />
+            <SolidColorBrush x:Key="AppError" Color="#EF4444" />
+            <SolidColorBrush x:Key="AppText" Color="#1F2937" />
+            <SolidColorBrush x:Key="AppTextSecondary" Color="#6B7280" />
+            <SolidColorBrush x:Key="AppBorder" Color="#E5E7EB" />
+            <SolidColorBrush x:Key="AppCardBorder" Color="#E5E7EB" />
+            <SolidColorBrush x:Key="AppHeaderBackground" Color="#EEF2FF" />
+            <SolidColorBrush x:Key="AppStatusBarBackground" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AppSelection" Color="#EEF2FF" />
+
+            <!-- Light palette (immutable source) -->
+            <SolidColorBrush x:Key="LightAppBackground" Color="#F5F7FB" />
+            <SolidColorBrush x:Key="LightAppCardBackground" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="LightAppAccent" Color="#4F46E5" />
+            <SolidColorBrush x:Key="LightAppAccentHover" Color="#3730A3" />
+            <SolidColorBrush x:Key="LightAppAccentPressed" Color="#312E81" />
+            <SolidColorBrush x:Key="LightAppSuccess" Color="#10B981" />
+            <SolidColorBrush x:Key="LightAppError" Color="#EF4444" />
+            <SolidColorBrush x:Key="LightAppText" Color="#1F2937" />
+            <SolidColorBrush x:Key="LightAppTextSecondary" Color="#6B7280" />
+            <SolidColorBrush x:Key="LightAppBorder" Color="#E5E7EB" />
+            <SolidColorBrush x:Key="LightAppCardBorder" Color="#E5E7EB" />
+            <SolidColorBrush x:Key="LightAppHeaderBackground" Color="#EEF2FF" />
+            <SolidColorBrush x:Key="LightAppStatusBarBackground" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="LightAppSelection" Color="#EEF2FF" />
+
+            <!-- Dark palette (immutable source) -->
+            <SolidColorBrush x:Key="DarkAppBackground" Color="#111827" />
+            <SolidColorBrush x:Key="DarkAppCardBackground" Color="#1F2937" />
+            <SolidColorBrush x:Key="DarkAppAccent" Color="#6366F1" />
+            <SolidColorBrush x:Key="DarkAppAccentHover" Color="#4F46E5" />
+            <SolidColorBrush x:Key="DarkAppAccentPressed" Color="#4338CA" />
+            <SolidColorBrush x:Key="DarkAppSuccess" Color="#34D399" />
+            <SolidColorBrush x:Key="DarkAppError" Color="#F87171" />
+            <SolidColorBrush x:Key="DarkAppText" Color="#F3F4F6" />
+            <SolidColorBrush x:Key="DarkAppTextSecondary" Color="#9CA3AF" />
+            <SolidColorBrush x:Key="DarkAppBorder" Color="#374151" />
+            <SolidColorBrush x:Key="DarkAppCardBorder" Color="#374151" />
+            <SolidColorBrush x:Key="DarkAppHeaderBackground" Color="#111827" />
+            <SolidColorBrush x:Key="DarkAppStatusBarBackground" Color="#1F2937" />
+            <SolidColorBrush x:Key="DarkAppSelection" Color="#312E81" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

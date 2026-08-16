@@ -1,0 +1,93 @@
+@page "/commands"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="card" style="max-width:640px;">
+    <h1>@L.T("AdminCommands")</h1>
+    <p class="sub">@L.T("AdminCommandsSub")</p>
+
+    <div class="form-row">
+        <label>@L.T("OwnerPassword")</label>
+        <input type="text" @bind="OwnerPassword" />
+    </div>
+    <div class="form-row">
+        <label style="display:inline-block;margin-right:18px;">
+            <input type="checkbox" @bind="CommandsEnabled" style="width:auto;" /> @L.T("EnableCommands")
+        </label>
+        <label style="display:inline-block;">
+            <input type="checkbox" @bind="StrictMode" style="width:auto;" /> @L.T("StrictMode")
+        </label>
+    </div>
+    <button class="btn" @onclick="SaveOwner">@L.T("Save")</button>
+</div>
+
+<div class="card">
+    <h1>@L.T("CommandLevels")</h1>
+    <p class="sub">@L.T("CommandLevelsSub")</p>
+    <div class="form-row" style="max-width:420px;">
+        <input type="text" @bind="Filter" placeholder="@L.T("FilterCommands")" />
+    </div>
+    <table>
+        <thead><tr><th>@L.T("Command")</th><th>@L.T("Level")</th></tr></thead>
+        <tbody>
+            @foreach (var c in _commands.Where(x => string.IsNullOrEmpty(Filter) ||
+                x.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase) ||
+                x.Level.Contains(Filter, StringComparison.OrdinalIgnoreCase)))
+            {
+                <tr>
+                    <td>@c.Name</td>
+                    <td style="width:220px;">
+                        <select style="width:100%;" value="@c.Level"
+                                @onchange="(e) => SetLevel(c.Name, e.Value?.ToString())">
+                            @foreach (var opt in ServerService.CommandOptions)
+                            {
+                                <option value="@opt">@opt</option>
+                            }
+                        </select>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private string OwnerPassword = "";
+    private bool CommandsEnabled = false;
+    private bool StrictMode = false;
+    private string Filter = "";
+    private List<CommandRow> _commands = new();
+
+    protected override void OnInitialized()
+    {
+        Load();
+    }
+
+    private void Load()
+    {
+        OwnerPassword = Server.Get<string>("owner");
+        CommandsEnabled = Server.Get<bool>("commands");
+        StrictMode = Server.Get<bool>("strict");
+        _commands = Server.CommandLevels.ToList();
+    }
+
+    private void SaveOwner()
+    {
+        Server.Set("owner", OwnerPassword);
+        Server.Set("commands", CommandsEnabled);
+        Server.Set("strict", StrictMode);
+        Load();
+    }
+
+    private void SetLevel(string name, string? level)
+    {
+        if (string.IsNullOrEmpty(level))
+            return;
+        Server.SetCommandLevel(name, ServerService.StringToLevel(level));
+        var item = _commands.FirstOrDefault(x => x.Name == name);
+        if (item != null)
+            item.Level = level;
+        StateHasChanged();
+    }
+}
