@@ -84,6 +84,12 @@ namespace core.ib0t
         private int socket_health = 0;
         private List<byte> data_in = new List<byte>();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
+
+        // Security limits for untrusted web clients. Oversized frames are
+        // dropped (not honoured and not buffered) instead of disconnecting
+        // the user, so an attacker cannot exhaust server memory.
+        private const int MAX_BUFFER_SIZE = 64 * 1024 * 1024;  // 64 MB buffered data
+        private const int MAX_MESSAGE_SIZE = 30 * 1024 * 1024; // 30 MB per message
         private ILevel _level = ILevel.Regular;
         private String _name = String.Empty;
         private ushort _vroom = 0;
@@ -816,6 +822,12 @@ namespace core.ib0t
                 this.socket_health = 0;
                 this.data_in.AddRange(buffer.Take(received));
                 Stats.DataReceived += (ulong)received;
+
+                // Guard against a client flooding the buffer without ever
+                // completing a parseable frame. Drop the excess data instead
+                // of disconnecting the user.
+                if (this.data_in.Count > MAX_BUFFER_SIZE)
+                    this.data_in.Clear();
             }
         }
 
@@ -959,6 +971,13 @@ namespace core.ib0t
 
                 if (index > 0)
                 {
+                    if (index > MAX_MESSAGE_SIZE)
+                    {
+                        // Drop the oversized message without disconnecting.
+                        this.data_in.RemoveRange(0, (index + 1));
+                        return null;
+                    }
+
                     byte[] buffer = this.data_in.GetRange(1, (index - 1)).ToArray();
                     this.data_in.RemoveRange(0, (index + 1));
                     return Encoding.UTF8.GetString(buffer);
@@ -998,7 +1017,18 @@ namespace core.ib0t
 
                     buffer = this.data_in.GetRange(2, 8).ToArray();
                     Array.Reverse(buffer);
-                    len = (int)BitConverter.ToUInt64(buffer, 0);
+                    ulong len64 = BitConverter.ToUInt64(buffer, 0);
+
+                    // Reject absurdly large frames before casting to int to
+                    // avoid an overflow making the size check pass. Drop the
+                    // oversized frame without disconnecting the user.
+                    if (len64 > MAX_MESSAGE_SIZE)
+                    {
+                        this.data_in.Clear();
+                        return null;
+                    }
+
+                    len = (int)len64;
 
                     if (max_size < (14 + len))
                         return null;
