@@ -30,13 +30,17 @@ Cuando publiquemos una versión nueva, los archivos listos para usar estarán en
 
 👉 **https://github.com/lexicon06/sb0t-Pyxis/releases**
 
-Cada release traerá **dos versiones**:
+Cada release traerá **cuatro archivos**:
 
-| Archivo | Qué es |
-|---|---|
-| `sb0t-pyxis-gui-win-x64.zip` | La aplicación de escritorio (ventana) para **Windows 64 bits** |
-| `sb0t-pyxis-web-win-x64.zip` | El **panel web** independiente para Windows 64 bits |
+| Archivo | Qué es | ¿Necesita instalar algo? |
+|---|---|---|
+| `sb0t-Pyxis-gui-win-x64-SELF-CONTAINED.zip` ⭐ | Aplicación de escritorio para **Windows 64 bits** | ❌ No — funciona directo |
+| `sb0t-Pyxis-web-win-x64-SELF-CONTAINED.zip` ⭐ | **Panel web** para **Windows 64 bits** | ❌ No — funciona directo |
+| `sb0t-Pyxis-gui-win-x64.zip` | Aplicación de escritorio (más liviana) | ✅ Requiere **.NET 8 Desktop Runtime** |
+| `sb0t-Pyxis-web-win-x64.zip` | Panel web (más liviano) | ✅ Requiere **.NET 8 Desktop Runtime** |
 
+> ⭐ **Recomendado:** las versiones **SELF-CONTAINED** traen todo incluido — el usuario solo descomprime y ejecuta, sin instalar nada. Elegí estas si querés la experiencia más simple.
+>
 > **¿No sabés si tu PC es de 64 bits?** Casi todas las computadoras modernas lo son. En Windows abrí el *Explorador de archivos* → clic derecho en *Este equipo* → *Propiedades* y mirá "Tipo de sistema".
 
 ---
@@ -45,7 +49,7 @@ Cada release traerá **dos versiones**:
 
 ### Opción A: Solo la aplicación de escritorio (la más fácil)
 
-1. Descargá **`sb0t-pyxis-gui-win-x64.zip`** desde Releases.
+1. Descargá **`sb0t-Pyxis-gui-win-x64-SELF-CONTAINED.zip`** desde Releases (el que trae todo incluido).
 2. Hacé clic derecho sobre el `.zip` y elegí **"Extraer todo..."**.
 3. Entrá a la carpeta extraída y doble clic en **`sb0t.exe`**.
 4. En la ventana que se abre, completá los datos básicos:
@@ -55,13 +59,13 @@ Cada release traerá **dos versiones**:
 5. Clic en **Iniciar servidor** (el botón grande arriba).
 6. ✅ ¡Listo! Tu sala está corriendo. Los clientes Ares pueden conectarse a tu IP en ese puerto.
 
-> 💡 **¿Qué pasa si la ventana está vacía o no arranca?** Asegurate de tener el **.NET 8 Desktop Runtime** instalado (lo encontrás buscando en Google "descargar .NET 8 Desktop Runtime"). En el futuro haremos versiones "self-contained" que no necesitan nada instalado.
+> 💡 **¿Usás la versión que NO es SELF-CONTAINED?** Necesitás tener instalado el **.NET 8 Desktop Runtime** (buscá en Google "descargar .NET 8 Desktop Runtime"). La versión SELF-CONTAINED no requiere nada.
 
 ### Opción B: Con panel web (para administrar desde el navegador)
 
 El panel web te deja administrar la sala desde cualquier navegador (incluso desde el celular).
 
-1. Descargá **`sb0t-pyxis-web-win-x64.zip`** desde Releases.
+1. Descargá **`sb0t-Pyxis-web-win-x64-SELF-CONTAINED.zip`** desde Releases.
 2. Extraé el `.zip` y doble clic en **`sb0t.web.exe`**.
 3. Se abre una **ventana negra (consola)** que te muestra la dirección y la contraseña:
 
@@ -107,14 +111,23 @@ dotnet run --project sb0t.web
 Después abrí http://localhost:8080 en el navegador.
 
 ### Publicar una versión (para Releases)
+
+**Versión SELF-CONTAINED** (recomendada — el usuario no necesita instalar nada):
 ```bash
 # Aplicación de escritorio para Windows 64 bits
-dotnet publish gui -c Release -r win-x64 -o out/gui
+dotnet publish gui -c Release -r win-x64 --self-contained true -o out/gui
 
 # Panel web para Windows 64 bits
-dotnet publish sb0t.web -c Release -r win-x64 -o out/web
+dotnet publish sb0t.web -c Release -r win-x64 --self-contained true -o out/web
 ```
-Comprimí las carpetas `out/gui` y `out/web` en `.zip` y subilas a GitHub Releases.
+
+**Versión framework-dependent** (más liviana — requiere .NET 8 Runtime instalado):
+```bash
+dotnet publish gui -c Release -r win-x64 --self-contained false -o out/gui-fd
+dotnet publish sb0t.web -c Release -r win-x64 --self-contained false -o out/web-fd
+```
+
+Comprimí cada carpeta `out/...` en un `.zip` y subilos a GitHub Releases.
 
 > 💡 Funciona en Windows, Linux y macOS. Para Linux/macOS, en los comandos de publish cambiá `win-x64` por `linux-x64` o `osx-x64`.
 
