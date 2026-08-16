@@ -30,14 +30,16 @@ Cuando publiquemos una versión nueva, los archivos listos para usar estarán en
 
 👉 **https://github.com/lexicon06/sb0t-Pyxis/releases**
 
-Cada release traerá **cuatro archivos**:
+Cada release traerá los siguientes archivos:
 
-| Archivo | Qué es | ¿Necesita instalar algo? |
-|---|---|---|
-| `sb0t-Pyxis-gui-win-x64-SELF-CONTAINED.zip` ⭐ | Aplicación de escritorio para **Windows 64 bits** | ❌ No — funciona directo |
-| `sb0t-Pyxis-web-win-x64-SELF-CONTAINED.zip` ⭐ | **Panel web** para **Windows 64 bits** | ❌ No — funciona directo |
-| `sb0t-Pyxis-gui-win-x64.zip` | Aplicación de escritorio (más liviana) | ✅ Requiere **.NET 8 Desktop Runtime** |
-| `sb0t-Pyxis-web-win-x64.zip` | Panel web (más liviano) | ✅ Requiere **.NET 8 Desktop Runtime** |
+| Archivo | Qué es | Sistema | ¿Necesita instalar algo? |
+|---|---|---|---|
+| `sb0t-Pyxis-gui-win-x64-SELF-CONTAINED.zip` ⭐ | Aplicación de escritorio | **Windows** 64 bits | ❌ No — funciona directo |
+| `sb0t-Pyxis-web-win-x64-SELF-CONTAINED.zip` ⭐ | **Panel web** | **Windows** 64 bits | ❌ No — funciona directo |
+| `sb0t-Pyxis-gui-linux-x64-SELF-CONTAINED.zip` ⭐ | Aplicación de escritorio | **Linux** 64 bits | ❌ No — funciona directo |
+| `sb0t-Pyxis-web-linux-x64-SELF-CONTAINED.zip` ⭐ | **Panel web** | **Linux** 64 bits | ❌ No — funciona directo |
+| `sb0t-Pyxis-gui-win-x64.zip` | Aplicación de escritorio (liviana) | **Windows** 64 bits | ✅ Requiere **.NET 8 Desktop Runtime** |
+| `sb0t-Pyxis-web-win-x64.zip` | Panel web (liviano) | **Windows** 64 bits | ✅ Requiere **.NET 8 Desktop Runtime** |
 
 > ⭐ **Recomendado:** las versiones **SELF-CONTAINED** traen todo incluido — el usuario solo descomprime y ejecuta, sin instalar nada. Elegí estas si querés la experiencia más simple.
 >
@@ -84,6 +86,28 @@ El panel web te deja administrar la sala desde cualquier navegador (incluso desd
 
 > 💡 **Para conectarte desde otro dispositivo** (ej: tu celular en la misma red Wi-Fi), en vez de `localhost` usá la IP de tu PC, por ejemplo `http://192.168.1.50:8080`. Y para que la consola muestre la contraseña de nuevo, cerrá y volvé a abrir el programa.
 
+### Opción C: Linux (servidor)
+
+Si usás **Linux** (por ejemplo un servidor o una PC con Ubuntu/Debian), descargá las versiones **`*-linux-x64-SELF-CONTAINED.zip`**.
+
+1. Descargá el `.zip` y extraelo:
+```bash
+unzip sb0t-Pyxis-web-linux-x64-SELF-CONTAINED.zip
+cd sb0t-Pyxis-web-linux-x64-SELF-CONTAINED
+```
+
+2. Dale permiso de ejecución y arrancalo:
+```bash
+chmod +x sb0t.web
+./sb0t.web
+```
+
+3. Abrí http://localhost:8080 en tu navegador y entrá con la contraseña que aparece en la terminal.
+
+> 💡 **¿Querés que corra en segundo plano?** Podés usar `nohup ./sb0t.web &` o un servicio de `systemd`. La consola muestra la contraseña la primera vez — anotala.
+>
+> 💡 **Para la GUI de escritorio en Linux** usá `sb0t-Pyxis-gui-linux-x64-SELF-CONTAINED.zip`, extraé, y ejecutá `./sb0t` (necesita un entorno gráfico X11/Wayland).
+
 ---
 
 ## 🚀 Cómo compilar desde el código (para desarrolladores)
@@ -113,6 +137,8 @@ Después abrí http://localhost:8080 en el navegador.
 ### Publicar una versión (para Releases)
 
 **Versión SELF-CONTAINED** (recomendada — el usuario no necesita instalar nada):
+
+Windows:
 ```bash
 # Aplicación de escritorio para Windows 64 bits
 dotnet publish gui -c Release -r win-x64 --self-contained true -o out/gui
@@ -121,15 +147,24 @@ dotnet publish gui -c Release -r win-x64 --self-contained true -o out/gui
 dotnet publish sb0t.web -c Release -r win-x64 --self-contained true -o out/web
 ```
 
+Linux:
+```bash
+# Aplicación de escritorio para Linux 64 bits
+dotnet publish gui -c Release -r linux-x64 --self-contained true -o out/gui-linux
+
+# Panel web para Linux 64 bits
+dotnet publish sb0t.web -c Release -r linux-x64 --self-contained true -o out/web-linux
+```
+
 **Versión framework-dependent** (más liviana — requiere .NET 8 Runtime instalado):
 ```bash
 dotnet publish gui -c Release -r win-x64 --self-contained false -o out/gui-fd
 dotnet publish sb0t.web -c Release -r win-x64 --self-contained false -o out/web-fd
 ```
 
-Comprimí cada carpeta `out/...` en un `.zip` y subilos a GitHub Releases.
+Comprimí cada carpeta `out/...` en un `.zip` y subilos a GitHub Releases. (En Linux también podés usar `tar czf out.tar.gz out/`.)
 
-> 💡 Funciona en Windows, Linux y macOS. Para Linux/macOS, en los comandos de publish cambiá `win-x64` por `linux-x64` o `osx-x64`.
+> 💡 También funciona en macOS: cambiá `win-x64` / `linux-x64` por `osx-x64`.
 
 ---
 
