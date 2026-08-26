@@ -154,10 +154,68 @@ namespace core.Udp
             return false;
         }
 
+        /// <summary>
+        /// Fallback node list used when nodes.xml is missing and no Supabase
+        /// configuration is present. These are well-known Ares chat servers so
+        /// a fresh install (e.g. Linux) starts with peers to discover rooms.
+        /// </summary>
+        private static readonly string[] DefaultNodes =
+        {
+            "100.8.72.86:55555", "103.39.209.167:54321", "103.39.210.194:54321",
+            "146.103.45.73:54321", "151.241.99.24:54321", "151.243.101.142:54321",
+            "153.75.247.202:10000", "154.7.253.134:54321", "163.176.241.96:10000",
+            "163.245.209.101:6890", "173.208.251.68:11000", "173.208.251.70:1000",
+            "173.208.251.70:5009", "173.208.251.70:5010", "173.208.251.70:5011",
+            "18.227.73.94:43827", "181.41.201.44:54321", "186.60.25.100:5000",
+            "186.61.106.231:4040", "189.173.171.172:10010", "192.227.173.86:54321",
+            "192.227.229.81:54321", "192.3.152.150:54321", "192.3.152.152:54321",
+            "193.109.193.17:54321", "198.12.89.162:54321", "198.12.89.163:54321",
+            "198.12.89.190:54321", "198.12.89.207:54321", "198.12.89.213:54321",
+            "198.12.89.216:54321", "198.23.188.166:54321", "198.23.188.208:54321",
+            "200.155.158.226:54321", "202.155.8.165:54321", "202.155.8.230:54321",
+            "202.155.8.98:54321", "208.116.56.118:44271", "212.100.173.105:10000",
+            "213.145.86.95:54321", "37.202.222.132:54321", "37.202.222.165:54321",
+            "37.202.222.221:54321", "38.134.148.67:54321", "38.146.27.117:54321",
+            "41.193.12.218:54321", "45.58.168.217:12000", "45.58.168.54:10000",
+            "51.222.186.106:10000", "51.68.74.129:54321", "54.39.20.14:5009",
+            "57.128.243.45:54321", "65.21.240.33:54321", "66.150.198.189:54321",
+            "74.208.112.247:50000", "74.208.112.247:54321", "74.91.112.251:11000",
+            "77.42.79.24:62175", "83.39.191.103:5010", "92.112.53.107:54321"
+        };
+
         private static bool LoadDefaultList()
         {
             if (!SupabaseClient.IsConfigured)
             {
+                // No nodes.xml and no Supabase: seed with the built-in node
+                // list so the server has peers immediately (any OS). Persist
+                // them to nodes.xml for subsequent starts.
+                try
+                {
+                    Nodes = new List<UdpNode>();
+
+                    foreach (String entry in DefaultNodes)
+                    {
+                        String[] parts = entry.Split(':');
+
+                        if (parts.Length == 2 && IPAddress.TryParse(parts[0], out IPAddress ip))
+                            Nodes.Add(new UdpNode
+                            {
+                                IP = ip,
+                                Port = ushort.Parse(parts[1]),
+                                Ack = 0
+                            });
+                    }
+
+                    if (Nodes.Count > 0)
+                    {
+                        SaveNodes();
+                        ServerCore.Log("default node list seeded [" + Nodes.Count + "]");
+                        return true;
+                    }
+                }
+                catch { }
+
                 if (Nodes == null)
                     Nodes = new List<UdpNode>();
                 return false;
@@ -190,6 +248,25 @@ namespace core.Udp
             udpNode.IP = IPAddress.Parse(ip);
             udpNode.Port = port;
             return udpNode;
+        }
+
+        private static void SaveNodes()
+        {
+            try
+            {
+                XDocument xml = new XDocument(new XElement("NodeList"));
+
+                foreach (UdpNode i in Nodes)
+                {
+                    xml.Element("NodeList").Add(new XElement("node",
+                        new XElement("ip", i.IP),
+                        new XElement("port", i.Port),
+                        new XElement("ack", i.Ack)));
+                }
+
+                xml.Save(DataPath);
+            }
+            catch { }
         }
 
         public static UdpNode[] GetServers(int max_servers, ulong time)
