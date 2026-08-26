@@ -592,8 +592,23 @@ namespace core
                 // The real client IP is resolved later during the WebSocket handshake
                 // by reading X-Forwarded-For/X-Real-IP headers in ib0tClient.LoadProtocol().
                 // Therefore, flood tracking here may record the proxy IP instead of the real client.
-                string ipAddress = ((IPEndPoint)sock.RemoteEndPoint).Address.ToString();
-                if (_connectFlood.ContainsKey(ipAddress))
+                IPAddress remoteIP = ((IPEndPoint)sock.RemoteEndPoint).Address;
+                string ipAddress = remoteIP.ToString();
+
+                // When clients connect through a trusted proxy, they all share
+                // the proxy's IP, so the per-IP connect flood limit would cut
+                // legitimate users. Skip flood tracking for trusted proxies.
+                if (remoteIP != null)
+                {
+                    try
+                    {
+                        if (core.TrustedProxyManager.IsTrustedProxy(remoteIP))
+                            ipAddress = null; // bypass flood check below
+                    }
+                    catch { }
+                }
+
+                if (ipAddress != null && _connectFlood.ContainsKey(ipAddress))
                 {
                     if (_connectFlood[ipAddress].count >= 3)
                     {
