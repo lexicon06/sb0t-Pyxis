@@ -382,6 +382,69 @@ namespace sb0t.web.Services
             string p = System.IO.Path.Combine(core.DataPaths.Avatars, "default");
             return System.IO.File.Exists(p) ? System.IO.File.ReadAllBytes(p) : null;
         }
+
+        // ================= EXTENSIONS =================
+
+        /// <summary>
+        /// Enumerates the Extensions folder and reports which extensions are
+        /// installed, which are currently mounted, and which are set to auto-load.
+        /// </summary>
+        public IEnumerable<ExtensionRow> Extensions
+        {
+            get
+            {
+                var loaded = new HashSet<string>(core.Extensions.ExtensionManager.Plugins.Select(p => p.Name));
+                var autoRun = new HashSet<string>(iconnect.SettingsStore.Keys("extautorun"));
+                var result = new List<ExtensionRow>();
+
+                string dir = core.DataPaths.Extensions;
+                if (System.IO.Directory.Exists(dir))
+                {
+                    foreach (var folder in System.IO.Directory.GetDirectories(dir))
+                    {
+                        string name = System.IO.Path.GetFileName(folder);
+                        if (System.IO.File.Exists(System.IO.Path.Combine(folder, "extension.dll")))
+                        {
+                            result.Add(new ExtensionRow
+                            {
+                                Name = name,
+                                Loaded = loaded.Contains(name),
+                                AutoRun = autoRun.Contains(name)
+                            });
+                        }
+                    }
+                }
+                return result;
+            }
+        }
+
+        /// <summary>Mount (load) an extension by folder name. Returns false on failure.</summary>
+        public bool LoadExtension(string name)
+        {
+            return core.Extensions.ExtensionManager.LoadPlugin(name) != null;
+        }
+
+        /// <summary>Unmount (unload) an extension by folder name.</summary>
+        public void UnloadExtension(string name)
+        {
+            core.Extensions.ExtensionManager.UnloadPlugin(name);
+        }
+
+        /// <summary>Add or remove an extension from the startup auto-load list.</summary>
+        public void SetExtensionAutoRun(string name, bool enabled)
+        {
+            if (enabled)
+                iconnect.SettingsStore.Set(name, 0, "extautorun");
+            else
+                iconnect.SettingsStore.Delete(name, "extautorun");
+        }
+    }
+
+    public class ExtensionRow
+    {
+        public string Name { get; set; } = "";
+        public bool Loaded { get; set; }
+        public bool AutoRun { get; set; }
     }
 
     public class UserRow

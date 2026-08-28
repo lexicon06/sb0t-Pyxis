@@ -173,6 +173,18 @@ namespace sb0t.web.Services
             // logs
             ["ServerLog"] = "Server log",
             ["Refresh"] = "Refresh",
+
+            // extensions
+            ["Extensions"] = "Extensions",
+            ["ExtensionsSub"] = "Installed DLL extensions. Mount or unmount them and control which auto-load at startup.",
+            ["Installed"] = "Installed",
+            ["AutoLoad"] = "Auto-load",
+            ["Load"] = "Load",
+            ["Unload"] = "Unload",
+            ["NoExtensions"] = "No extensions found in the Extensions folder.",
+            ["ExtensionLoaded"] = "Extension loaded.",
+            ["ExtensionUnloaded"] = "Extension unloaded.",
+            ["ExtensionLoadFailed"] = "Failed to load extension.",
         };
 
         private static readonly Dictionary<string, string> _es = new()
@@ -299,6 +311,17 @@ namespace sb0t.web.Services
 
             ["ServerLog"] = "Registro del servidor",
             ["Refresh"] = "Actualizar",
+
+            ["Extensions"] = "Extensiones",
+            ["ExtensionsSub"] = "Extensiones DLL instaladas. Montá o desmontá extensiones y controlá cuáles se cargan al inicio.",
+            ["Installed"] = "Instaladas",
+            ["AutoLoad"] = "Auto-carga",
+            ["Load"] = "Montar",
+            ["Unload"] = "Desmontar",
+            ["NoExtensions"] = "No se encontraron extensiones en la carpeta Extensions.",
+            ["ExtensionLoaded"] = "Extensión montada.",
+            ["ExtensionUnloaded"] = "Extensión desmontada.",
+            ["ExtensionLoadFailed"] = "No se pudo montar la extensión.",
         };
     }
 }

@@ -1,0 +1,100 @@
+@page "/extensions"
+@attribute [Authorize]
+@inject ServerService Server
+@inject LocalizationService L
+
+<div class="card" style="max-width:900px;">
+    <h1>@L.T("Extensions")</h1>
+    <p class="sub">@L.T("ExtensionsSub")</p>
+
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="login-error">@Message</div>
+    }
+
+    <table style="margin-top:16px;">
+        <thead>
+            <tr>
+                <th>@L.T("Name")</th>
+                <th>@L.T("Status")</th>
+                <th>@L.T("AutoLoad")</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ext in _extensions)
+            {
+                <tr>
+                    <td>@ext.Name</td>
+                    <td>
+                        @if (ext.Loaded)
+                        {
+                            <span class="badge running">@L.T("Running")</span>
+                        }
+                        else
+                        {
+                            <span class="badge stopped">@L.T("Stopped")</span>
+                        }
+                    </td>
+                    <td>
+                        <label class="form-row" style="margin-bottom:0;">
+                            <input type="checkbox" checked="@ext.AutoRun" @onchange="(e) => ToggleAutoRun(ext, e.Value is bool b && b)" />
+                        </label>
+                    </td>
+                    <td style="width:160px; text-align:right;">
+                        @if (ext.Loaded)
+                        {
+                            <button class="btn danger" style="padding:4px 10px;font-size:12px;" @onclick="() => Unload(ext)">@L.T("Unload")</button>
+                        }
+                        else
+                        {
+                            <button class="btn" style="padding:4px 10px;font-size:12px;" @onclick="() => Load(ext)">@L.T("Load")</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (!_extensions.Any())
+    {
+        <p class="sub">@L.T("NoExtensions")</p>
+    }
+</div>
+
+@code {
+    private List<ExtensionRow> _extensions = new();
+    private string Message = "";
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        Message = "";
+        _extensions = Server.Extensions.ToList();
+    }
+
+    private void Load(ExtensionRow ext)
+    {
+        Message = Server.LoadExtension(ext.Name)
+            ? L.T("ExtensionLoaded")
+            : L.T("ExtensionLoadFailed");
+        Refresh();
+    }
+
+    private void Unload(ExtensionRow ext)
+    {
+        Server.UnloadExtension(ext.Name);
+        Message = L.T("ExtensionUnloaded");
+        Refresh();
+    }
+
+    private void ToggleAutoRun(ExtensionRow ext, bool enabled)
+    {
+        Server.SetExtensionAutoRun(ext.Name, enabled);
+        Refresh();
+    }
+}

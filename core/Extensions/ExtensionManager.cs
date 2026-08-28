@@ -31,7 +31,7 @@ namespace core.Extensions
         private static String DataPath { get; set; }
         private static ConcurrentDictionary<String, ExPlugin> list { get; set; }
 
-        internal static List<ExPlugin> Plugins
+        public static List<ExPlugin> Plugins
         {
             get { return list == null ? new List<ExPlugin>() : list.Values.ToList(); }
         }
