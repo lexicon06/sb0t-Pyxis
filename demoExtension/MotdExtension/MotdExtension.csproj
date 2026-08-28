@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>MotdExtension</RootNamespace>
+    <AssemblyName>extension</AssemblyName>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the sb0t Pyxis host interface (IExtension, IHostApp, IUser, ...) -->
+    <ProjectReference Include="..\..\iconnect\iconnect.csproj" />
+    <!-- Cross-platform image library to read the JPG dimensions without System.Drawing -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+  </ItemGroup>
+
+</Project>

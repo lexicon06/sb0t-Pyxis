@@ -1,0 +1,98 @@
+========================================================
+  MotdExtension - demo de extensión DLL para sb0t Pyxis
+========================================================
+
+¿QUÉ ES ESTO?
+-------------
+Es un ejemplo mínimo de una extensión binaria (.NET DLL) para
+sb0t Pyxis. Cuando un usuario entra a la sala, el extension le
+envía una imagen (scribble) "message of the day" desde motd.jpg.
+
+El sistema de extensiones DLL de sb0t Pyxis es el mismo de sb0t
+clásico: implementás la interfaz "iconnect.IExtension" en una DLL
+llamada "extension.dll" y el servidor la carga desde la carpeta
+"Extensions".
+
+--------------------------------------------------------
+REQUISITOS
+--------------------------------------------------------
+1. .NET 8 SDK (o superior; compilamos contra net8.0)
+   Descargar: https://dotnet.microsoft.com/download/dotnet/8.0
+
+2. El repo de sb0t Pyxis (este mismo proyecto), para poder
+   referenciar "iconnect" (la biblioteca con las interfaces
+   IExtension / IHostApp / IUser).
+
+--------------------------------------------------------
+ESTRUCTURA DE CARPETAS
+--------------------------------------------------------
+demoExtension\
+  MotdExtension\
+    MotdExtension.cs         <- el código fuente
+    MotdExtension.csproj     <- el archivo de proyecto
+    bin\                     <- aquí se genera "extension.dll"
+                                 (ya viene compilado)
+
+--------------------------------------------------------
+CÓMO COMPILAR
+--------------------------------------------------------
+Abrí una terminal en la carpeta del proyecto y ejecutá:
+
+  cd demoExtension\MotdExtension
+  dotnet build -c Release -o bin
+
+O con rutas absolutas (si la terminal está en otro lado):
+
+  dotnet build -c Release -o ^
+    "C:\...\sb0t\demoExtension\MotdExtension\bin" ^
+    "C:\...\sb0t\demoExtension\MotdExtension\MotdExtension.csproj"
+
+El resultado estará en "bin\extension.dll".
+Requisito importante: el nombre del ensamblado DEBE ser
+"extension.dll" (ya está configurado en el .csproj con
+<AssemblyName>extension</AssemblyName>), porque el cargador
+del servidor busca ese nombre exacto.
+
+--------------------------------------------------------
+CÓMO INSTALAR / CARGAR LA EXTENSIÓN
+--------------------------------------------------------
+1. Creá la carpeta:
+     <Raíz del servidor>\Extensions\MotdExtension\
+
+2. Copiá adentro "extension.dll" (y si hay dependencias
+   propias, también van ahí).
+
+3. Poné tu imagen:
+     <Raíz del servidor>\Extensions\MotdExtension\motd.jpg
+   (la extensión busca "motd.jpg" en host.DataPath).
+
+4. Cargala desde la pestaña "Extensions" de la GUI de sb0t
+   (botón para añadir), o se auto-carga si figura en el
+   autorun de extensiones.
+
+CUANDO UN USUARIO ENTRA, LE VA A LLEGAR LA IMAGEN.
+
+--------------------------------------------------------
+QUÉ CAMBIA RESPECTO A LA EXTENSIÓN VIEJA (WPF / .NET Framework)
+--------------------------------------------------------
+- System.Drawing  ->  SixLabors.ImageSharp (multiplataforma)
+  (se usa Image.Load(...).Height para leer la altura de la imagen)
+- Sistema Windows (WPF: BitmapSource / UserControl):
+  las propiedades "Icon" y "GUI" de IExtension ahora son "object".
+- Nombre del bot:
+  OLD: reflexión a "core.Settings.Get("bot","")"
+  NEW: host.Room.BotName   (interfaz IRoom)
+- Envío del scribble:
+  OLD: reflexión a "client.Scribble2(nombre, base64, alto)"
+  NEW: client.Scribble(nombre, byte[], alto)   (interfaz IUser)
+  (ya no hace falta reflexión; todo sale por interfaces)
+
+--------------------------------------------------------
+NOTAS
+--------------------------------------------------------
+- La extensión se carga con Assembly.Load(bytes), así que no
+  necesita registro en Windows ni instalador.
+- Si tu extensión usa otras dependencias, asegurate de que su
+  versión sea compatible (net8.0) y de incluirlas en la carpeta
+  de la extensión o de que el servidor ya las tenga cargadas.
+========================================================
