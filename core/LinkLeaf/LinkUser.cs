@@ -91,6 +91,17 @@ namespace core.LinkLeaf
                     ServerCore.Linker.SendPacket(LeafOutbound.LeafScribbleUser(ServerCore.Linker, this, sender, height, img));
         }
 
+        public void Scribble2(String sender, String img, int height)
+        {
+            try
+            {
+                this.Scribble(sender, Convert.FromBase64String(img), height);
+            }
+            catch
+            {
+            }
+        }
+
         public void Nudge(String sender)
         {
             if (this.CustomClient)

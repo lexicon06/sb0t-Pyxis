@@ -150,6 +150,8 @@ namespace iconnect
         void Scribble(String sender, byte[] img, int height);
         /// <summary>Send a scribble to the user (if client supports this feature)</summary>
         void Scribble(String sender, String url);
+        /// <summary>Send a base64 scribble (large images) to the user (if client supports this feature)</summary>
+        void Scribble2(String sender, String img, int height);
         /// <summary>Nudge the user (if client supports this feature)</summary>
         void Nudge(String sender);
         /// <summary>Get Local Endpoint</summary>

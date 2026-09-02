@@ -38,6 +38,7 @@
     <Compile Include="Services\TrayIcon.cs" />
     <Compile Include="Services\ImageUtils.cs" />
     <Compile Include="Services\SpinBox.cs" />
+    <Compile Include="MsgBox.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

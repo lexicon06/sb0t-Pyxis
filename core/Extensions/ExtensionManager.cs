@@ -52,7 +52,15 @@ namespace core.Extensions
         {
             try
             {
-                Assembly asm = Assembly.Load(File.ReadAllBytes(DataPath + name + "\\extension.dll"));
+                String dllPath = DataPath + name + "\\extension.dll";
+
+                if (!File.Exists(dllPath))
+                {
+                    ServerCore.Log("ExtLoad: no se encontró " + dllPath);
+                    return null;
+                }
+
+                Assembly asm = Assembly.Load(File.ReadAllBytes(dllPath));
                 Type type = asm.GetTypes().FirstOrDefault(x => x.GetInterface("iconnect.IExtension") != null);
 
                 if (type != null)
@@ -72,7 +80,10 @@ namespace core.Extensions
                     {
                         list[p.Name].Plugin.Load();
                     }
-                    catch { }
+                    catch (Exception loadEx)
+                    {
+                        ServerCore.Log("ExtLoad: Load() falló en " + name + " -> " + loadEx);
+                    }
 
                     return new ExtensionFrontEnd
                     {
@@ -81,8 +92,13 @@ namespace core.Extensions
                         Name = list[p.Name].Name
                     };
                 }
+                else
+                    ServerCore.Log("ExtLoad: " + name + " no implementa iconnect.IExtension");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                ServerCore.Log("ExtLoad: cargar " + name + " falló -> " + ex.GetType().Name + ": " + ex.Message);
+            }
 
             return null;
         }

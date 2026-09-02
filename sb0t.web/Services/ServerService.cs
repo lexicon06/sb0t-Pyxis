@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using core;
@@ -47,16 +48,34 @@ namespace sb0t.web.Services
                 return _logBuffer.TakeLast(count).ToList();
         }
 
-        public bool Running => Server.Running || IsExternallyRunning();
+        public bool Running => Server.Running || (IsExternallyRunning() && IsPortInUse());
 
         /// <summary>
         /// True if the shared server status says the server is running and it
         /// was started by another process (e.g. the desktop GUI).
+        ///
+        /// The status file can go stale when the process that started the server
+        /// dies without writing the "stopped" marker (crash / window close).
+        /// To guard against that, we only trust the marker when the configured
+        /// port is actually being served by another process. If the port is free
+        /// it means the server is really down, so we report it as not running and
+        /// clear the stale marker.
         /// </summary>
         public bool IsExternallyRunning()
         {
             var status = core.ServerCore.ReadServerStatus();
-            return status != null && status.running && !string.Equals(status.source, "web", StringComparison.OrdinalIgnoreCase);
+            if (status == null || !status.running)
+                return false;
+            if (string.Equals(status.source, "web", StringComparison.OrdinalIgnoreCase))
+                return Server.Running;
+
+            // Started by the GUI: only real if another process owns the port.
+            if (IsPortInUse())
+                return true;
+
+            // The GUI is gone but left a stale "running" marker -> clean it up.
+            core.ServerCore.WriteServerStatus(false);
+            return false;
         }
 
         /// <summary>
@@ -87,7 +106,17 @@ namespace sb0t.web.Services
             if (Server.Running)
                 return true;
             if (IsExternallyRunning())
+            {
+                // Another process (the GUI) owns the port: it is already serving.
+                // If it is stale this fixes the marker via IsExternallyRunning().
                 return true;
+            }
+            if (IsPortInUse())
+            {
+                // A stuck process is holding the port -> kill it so we can
+                // start a clean instance.
+                KillServerProcess();
+            }
             core.Extensions.ExtensionManager.Setup();
             foreach (var ext in iconnect.SettingsStore.Keys("extautorun"))
                 core.Extensions.ExtensionManager.LoadPlugin(ext);
@@ -97,9 +126,63 @@ namespace sb0t.web.Services
         public void Stop()
         {
             if (Server.Running)
+            {
                 Server.Close();
-            else if (IsExternallyRunning())
+                return;
+            }
+
+            if (IsExternallyRunning())
+            {
+                // Server was started by the desktop GUI: first try a graceful
+                // stop, then kill any process still holding the port so we can
+                // guarantee a clean slate.
                 core.ServerCore.WriteRemoteCommand("stop", null);
+                KillServerProcess();
+            }
+        }
+
+        /// <summary>
+        /// Terminates any process (other than this one) that is holding the
+        /// configured server port. Used to recover a stuck server that was
+        /// started by the desktop GUI, so we can run a clean instance.
+        /// </summary>
+        private void KillServerProcess()
+        {
+            try
+            {
+                ushort port = Settings.Get<ushort>("port");
+                if (port == 0)
+                    port = 54321;
+
+                int currentPid = Process.GetCurrentProcess().Id;
+
+                // Only act if something external is really holding the port.
+                bool inUse = false;
+                var tcp = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, port);
+                try
+                {
+                    tcp.Start();
+                    tcp.Stop();
+                }
+                catch
+                {
+                    inUse = true;
+                }
+
+                if (inUse)
+                {
+                    // The only other server host on this machine is the GUI.
+                    foreach (var p in Process.GetProcessesByName("sb0t"))
+                    {
+                        if (p.Id == currentPid)
+                            continue;
+                        try { p.Kill(); } catch { }
+                    }
+                }
+
+                core.ServerCore.WriteServerStatus(false);
+            }
+            catch { }
         }
 
         public string WebPassword

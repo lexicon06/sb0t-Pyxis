@@ -17,6 +17,7 @@ namespace MotdExtension
     {
         private readonly IHostApp host;
         private byte[] imageData;
+        private string base64Image;
         private int imageHeight;
 
         public MotdExtension(IHostApp host)
@@ -30,6 +31,8 @@ namespace MotdExtension
             {
                 // Read the raw image bytes once and reuse for every join.
                 this.imageData = File.ReadAllBytes(imagePath);
+                // base64 form, used for large-image scribble (Scribble2) to inbizier clients.
+                this.base64Image = Convert.ToBase64String(this.imageData);
 
                 // Cross-platform way to read the real image height
                 // (replaces the old System.Drawing.Bitmap which is Windows-only).
@@ -55,12 +58,16 @@ namespace MotdExtension
         {
             if (this.imageData == null || client == null)
                 return;
+            // MOTD is addressed only to the user who just joined.
+            if (!(client.IsInbizierWeb || client.IsInbizierMobile))
+                return;
 
             try
             {
-                // Send the scribble directly through the IUser interface.
-                // (replaces the old reflection call to client.Scribble2)
-                client.Scribble(host.Room.BotName ?? "Server", this.imageData, this.imageHeight);
+                string sender = host.Room.BotName ?? "Server";
+                // Large image scribble (base64, allows big MOTD pictures)
+                // sent only to this joining inbizier client.
+                client.Scribble2(sender, this.base64Image, this.imageHeight);
             }
             catch (Exception ex)
             {

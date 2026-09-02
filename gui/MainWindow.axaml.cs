@@ -93,19 +93,12 @@ namespace gui
             }
         }
 
-        private async void Window_Closing(object sender, WindowClosingEventArgs e)
+        private void Window_Closing(object sender, WindowClosingEventArgs e)
         {
-            // Cancel first so the window does not close while the dialog is open.
-            e.Cancel = true;
-
-            var result = await ThingLing.Controls.MessageBox.ShowAsync(this,
-                GUILabels.IsSpanish ? GUILabels.spanish["mboxb"] : GUILabels.english["mboxb"],
-                "sb0t",
-                ThingLing.Controls.MessageBoxButton.YesNo,
-                ThingLing.Controls.MessageBoxImage.Warning);
-
-            if (result == ThingLing.Controls.MessageBoxResult.Yes)
-                this.Close();
+            // Close directly. The old confirmation used ThingLing.Controls.MessageBox
+            // which is compiled against Avalonia 0.10 and throws with Avalonia 11,
+            // leaving the server stuck and the status stale. Allow the window to
+            // close so Window_Closed performs a clean server shutdown.
         }
 
         private void Window_Closed(object sender, EventArgs e)
@@ -362,11 +355,20 @@ namespace gui
         {
             try
             {
-                Process.Start(new ProcessStartInfo
+                String path = core.DataPaths.Root;
+
+                if (!System.IO.Directory.Exists(path))
+                    System.IO.Directory.CreateDirectory(path);
+
+                Process.Start(new ProcessStartInfo("explorer.exe", "\"" + path + "\"") { UseShellExecute = true });
+
+                try
                 {
-                    FileName = core.DataPaths.Root,
-                    UseShellExecute = true
-                });
+                    System.IO.File.AppendAllText(
+                        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sb0t-startup.log"),
+                        DateTime.Now + " button2 DataPath=" + path + Environment.NewLine);
+                }
+                catch { }
             }
             catch { }
         }
@@ -648,8 +650,16 @@ namespace gui
 
         private async void ShowMessage(string text)
         {
-            await ThingLing.Controls.MessageBox.ShowAsync(this, text, "sb0t",
-                ThingLing.Controls.MessageBoxButton.Ok, ThingLing.Controls.MessageBoxImage.Information);
+            // Native Avalonia 11 dialog (replaces ThingLing.Controls.MessageBox,
+            // which is built against Avalonia 0.10 and fails to load).
+            try
+            {
+                await MsgBox.ShowAsync(this, text, "sb0t");
+            }
+            catch
+            {
+                // Never crash the GUI if the dialog cannot be shown.
+            }
         }
     }
 }

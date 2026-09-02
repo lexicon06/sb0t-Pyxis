@@ -43,6 +43,7 @@ namespace scripting.Instances
         private String ConnectionString { get; set; }
         private SqliteConnection Connection { get; set; }
         private SqliteDataReader Reader { get; set; }
+        private SqliteCommand Command { get; set; }
 
         private static String[] bad_chars = new String[]
         {
@@ -130,6 +131,16 @@ namespace scripting.Instances
             }
             catch { }
 
+            try
+            {
+                if (this.Command != null)
+                {
+                    this.Command.Dispose();
+                    this.Command = null;
+                }
+            }
+            catch { }
+
             if (!this.Connected)
             {
                 this.m_last_error = "connection closed";
@@ -138,13 +149,12 @@ namespace scripting.Instances
 
             try
             {
-                using (SqliteCommand cmd = new SqliteCommand(query.query, this.Connection))
-                {
-                    for (int i = 0; i < query._params.Count; i++)
-                        cmd.Parameters.Add(query._params[i]);
+                this.Command = new SqliteCommand(query.query, this.Connection);
 
-                    this.Reader = cmd.ExecuteReader();
-                }
+                for (int i = 0; i < query._params.Count; i++)
+                    this.Command.Parameters.Add(query._params[i]);
+
+                this.Reader = this.Command.ExecuteReader();
             }
             catch (Exception e)
             {
@@ -186,6 +196,16 @@ namespace scripting.Instances
                             this.Reader.Close();
                             this.Reader.Dispose();
                             this.Reader = null;
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        if (this.Command != null)
+                        {
+                            this.Command.Dispose();
+                            this.Command = null;
                         }
                     }
                     catch { }
@@ -234,6 +254,16 @@ namespace scripting.Instances
             }
             catch { }
 
+            try
+            {
+                if (this.Command != null)
+                {
+                    this.Command.Dispose();
+                    this.Command = null;
+                }
+            }
+            catch { }
+
             return success;
         }
 
@@ -257,6 +287,16 @@ namespace scripting.Instances
                     this.Reader.Close();
                     this.Reader.Dispose();
                     this.Reader = null;
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (this.Command != null)
+                {
+                    this.Command.Dispose();
+                    this.Command = null;
                 }
             }
             catch { }

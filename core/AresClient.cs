@@ -203,6 +203,12 @@ namespace core
             }
         }
 
+        public void Scribble2(String sender, String img, int height)
+        {
+            // Inbizier (protocol 5000) clients are served through ib0tClient,
+            // not this Ares socket handler. Nothing to do for raw Ares clients.
+        }
+
         public void Nudge(String sender)
         {
             byte[] buf = Encoding.UTF8.GetBytes("0" + sender);
