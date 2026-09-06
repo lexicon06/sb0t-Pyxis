@@ -303,7 +303,10 @@ namespace core
             {
                 len = Encoding.UTF8.GetByteCount(text);
 
-                if (len > 0 && len <= 300)
+                // TCPOutbound.Private truncates to 1000 chars/bytes, so allow
+                // longer text up to that limit here (was <=300 and silently
+                // dropped longer PMs instead of delivering/truncating them).
+                if (len > 0 && len <= 1000)
                     this.SendPacket(TCPOutbound.Private(this, sender, text));
             }
         }

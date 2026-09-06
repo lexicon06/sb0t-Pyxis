@@ -93,8 +93,8 @@ namespace core.ib0t
         {
             String str = text;
 
-            if (str.Length > 300)
-                str = str.Substring(0, 300);
+            if (str.Length > 1000)
+                str = str.Substring(0, 1000);
 
             return WebSockets.Html5TextPacket("PUBLIC:" + name.Length + "," + str.Length + ":" + name + str, userobj.WebCredentials.OldProto);
         }
@@ -107,8 +107,8 @@ namespace core.ib0t
         {
             String str = text;
 
-            if (str.Length > 300)
-                str = str.Substring(0, 300);
+            if (str.Length > 1000)
+                str = str.Substring(0, 1000);
 
             return WebSockets.Html5TextPacket("EMOTE:" + name.Length + "," + str.Length + ":" + name + str, userobj.WebCredentials.OldProto);
         }
@@ -117,8 +117,8 @@ namespace core.ib0t
         {
             String str = text;
 
-            if (str.Length > 300)
-                str = str.Substring(0, 300);
+            if (str.Length > 1000)
+                str = str.Substring(0, 1000);
 
             return WebSockets.Html5TextPacket("NOSUCH:" + str.Length + ":" + str, userobj.WebCredentials.OldProto);
         }

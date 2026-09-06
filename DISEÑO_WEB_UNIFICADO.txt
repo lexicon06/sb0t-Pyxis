@@ -1,0 +1,169 @@
+================================================================================
+ sb0t Pyxis - UNIFICAR PANEL ADMIN + SALA EN UN SOLO PUERTO (Blazor)
+ Diseño de arquitectura
+ Fecha: 2026-09-02
+ Estado: DISEÑO (no implementado todavía)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. OBJETIVO
+--------------------------------------------------------------------------------
+Unificar todo (sala + panel admin + endpoint personalizado + futura app móvil)
+detrás de UNA sola dirección/puerto usando el panel Blazor (sb0t.web).
+
+Dejar de depender del mini-servidor HTTP custom (WebWorker.cs) que sirve
+template.htm en el socket del chat, y centralizar todo en ASP.NET Core / Kestrel.
+
+VENTAJA CLAVE: abrir UN solo puerto (público) en vez de dos.
+  - El puerto del chat Ares (roomport) NO necesita exponerse para admin.
+  - El panel web (actual puerto 8080) es el único punto de entrada.
+
+--------------------------------------------------------------------------------
+2. CONTEXTO ACTUAL (lo que ya existe)
+--------------------------------------------------------------------------------
+a) El chat Ares corre en su propio puerto (roomport, ej. 54321).
+   - Acepta clientes Ares/cb0t en ese socket.
+   - WebWorker.cs detecta si llega un GET HTTP y sirve archivos estáticos
+     desde Settings.WebPath (template.htm, sb0t.js, favicon.ico, font.htm).
+
+b) El sb0t.web (ASP.NET Core Blazor) corre aparte en 0.0.0.0:8080.
+   - Mismo data folder que la GUI (SettingsStore.Identity = "sb0t").
+   - Referencia core.csproj -> instancia ServerCore compartida.
+   - Ya tiene panel admin: Login, Settings, Users, Bans, Proxy, Avatars,
+     Extensions, Linking, Logs, Advanced, Status, Commands.
+   - Auth por cookie + password único generado al primer arranque.
+   - ServerService (singleton) envuelve ServerCore y expone estado + logs.
+
+c) Deploy actual (escritorio):
+   - windows/    GUI Avalonia (sb0t.exe)
+   - linux/      GUI Avalonia (sb0t)
+   - web-windows/ Panel web (sb0t.web.exe)
+   - web-linux/   Panel web (sb0t.web)
+
+--------------------------------------------------------------------------------
+3. MODELO DE DESPLIEGUE OBJETIVO (una sala = un panel)
+--------------------------------------------------------------------------------
+Cada "sala" (room owner) tiene SU instalación del servidor:
+  - Un host (las 24h) corriendo sb0t.web (panel).
+  - El panel controla la sala (iniciar/parar el server, kick/ban, settings).
+  - Se expone UN solo puerto público (HTTPS idealmente) -> panel + API + app.
+
+El chat Ares puede seguir en el mismo proceso (ServerCore) o, si se quiere
+escalar, en procesos separados. Para MVP: mismo proceso, puerto interno.
+
+--------------------------------------------------------------------------------
+4. ENDPOINT PERSONALIZADO POR ROOM (lo que pediste)
+--------------------------------------------------------------------------------
+Idea original: en vez de template.htm fijo, cada room owner tiene su ruta.
+
+  FORMTO FINAL (2 capas):
+
+  CAPA A - Ruta "secreta" por owner (deterrente, NO seguridad real):
+    Ej:  https://mi.host/**endpointPersonalizado**
+    - El nombre lo elige el owner desde la UI (Settings -> Endpoint).
+    - se valida contra un valor guardado en Settings.
+    - Si el nombre no coincide -> 404.
+    - ADVERTENCIA: esto es "security by obscurity". Sirve para que un
+      endpoint no sea trivial de hallar, pero NO protege contra un host
+      escaneado/forzado.
+
+  CAPA B - Autenticación real (recomendada para "que no lo hackeen"):
+    - El endpoint NO está en el path público.
+    - Se sirve SOLO con token/API key válida (header o query firmado).
+    - Cada room owner tiene su par de credenciales/token.
+    - La app móvil manda el token; sin token -> 401/404.
+    - Gestión de tokens desde el panel (crear/revocar).
+
+  RECOMENDACIÓN FINAL: implementar CAPA A para compatibilidad rápida con la
+  web del oficial, PERO la seguridad real la da CAPA B + HTTPS.
+
+--------------------------------------------------------------------------------
+5. MANEJAR LA SALA DESDE EL PANEL (lo que ya es posible)
+--------------------------------------------------------------------------------
+ServerService ya expone:
+  - Running / Start() / Stop()
+  - IsExternallyRunning() / IsPortInUse()
+  - RecentLogs() y evento LogReceived (streaming de logs)
+  - ServerCore compartido -> acceso a usuarios, bans, settings.
+
+Ampliar el panel para manejo "en vivo" de la sala (a confirmar qué falta):
+  - Ver usuarios conectados + kick / ban / promote / mute.
+  - Enviar mensaje / anuncio a la sala (broadcast).
+  - Estadísticas de sala (uptime, usuarios, tráfico).
+  - Esto se implementa exponiendo los métodos de ServerCore / UserPool /
+    BanSystem a través de ServerService (endpoints o Blazor).
+
+--------------------------------------------------------------------------------
+6. MÓDULO API PARA APP MÓVIL (futuro, lo están ideando)
+--------------------------------------------------------------------------------
+El mismo puerto sirve una API REST / JSON para la app:
+  - POST /api/auth/login          -> token de sesión
+  - GET  /api/room/status         -> online, nombre, tema, usuarios
+  - GET  /api/room/users          -> lista usuarios (rol, idle)
+  - POST /api/room/announce       -> broadcast (requiere admin)
+  - POST /api/room/kick | /ban    -> moderación (requiere admin)
+  - GET  /api/room/endpoint       -> pagina personalizada JSON
+  - POST /api/room/endpoint       -> guardar contenido/nombre
+
+La app (Flutter/React Native) consume estas rutas con el token. El chat en
+sí puede seguir por protocolo Ares/cb0t, o migrar a WebSocket/JSON si se
+quiere todo por la misma conexión.
+
+--------------------------------------------------------------------------------
+7. HOJA DE RUTA (fases)
+--------------------------------------------------------------------------------
+FASE 0 - Base (ya existe): panel Blazor + ServerService + shared data folder.
+
+FASE 1 - Endpoint personalizado (CAPA A):
+   - Campo "endpoint" en Settings del panel.
+   - Ruta /{endpoint} en Kestrel que sirve una página HTML/JSON editable.
+   - Editor de contenido en la UI (Settings).
+   - 404 si el nombre no coincide.
+
+FASE 2 - Manejo de sala en vivo desde el panel:
+   - Página "Sala": lista de usuarios conectados.
+   - Acciones kick/ban/announce/status en vivo (streaming de eventos).
+   - Aprovechar LogReceived para actualización en tiempo real.
+
+FASE 3 - Seguridad real (CAPA B + HTTPS):
+   - Tokens por owner (generados/revocados desde el panel).
+   - Protección de endpoints de escritura con token.
+   - HTTPS (certificado, ej. let's encrypt / reverse proxy).
+
+FASE 4 - API pública estable + documentación para la app móvil.
+
+FASE 5 - App móvil (Flutter/React Native) consumiendo la API.
+
+--------------------------------------------------------------------------------
+8. DECISIONES ABIERTAS / PREGUNTAS
+--------------------------------------------------------------------------------
+1) El endpoint personalizado: ¿solo HTML estático editable, o también JSON
+   para la app? (Recomendado: ambos, por el mismo objeto data.)
+
+2) ¿Mantenemos el mini-WebWorker (template.htm) para compatibilidad con el
+   cliente web Ares/cb0t oficial, o lo apagamos y todo viaja por Blazor?
+   (Recomendado: mantenerlo apagado/solo para compat legacy, migrar a Blazor.)
+
+3) Chat móvil: ¿sigue ares/cb0t nativo o pasamos el chat a WebSocket/JSON
+   por el mismo puerto del panel? (Decisión clave para la app.)
+
+4) ¿El servidor de la sala corre SIEMPRE con el panel (mismo proceso) o se
+   permite que el owner haga deploy solo del panel y el chat en otro host?
+   (Se diseño hoy: mismo proceso, puertos internos separados.)
+
+5) HTTPS: ¿directo en Kestrel o detrás de reverse proxy (Caddy/nginx)?
+   (Recomendado: reverse proxy para simplificar certificados.)
+
+--------------------------------------------------------------------------------
+9. IMPACTO NOMBRE DE CARPETA DE DATOS
+--------------------------------------------------------------------------------
+Ya resuelto:
+  - GUI y web usan SettingsStore.Identity = "sb0t"
+  - => %APPDATA%/sb0t/sb0t (NO sb0t.exe)
+  - Ambos frontends comparten el mismo data folder y settings.
+  - La GUI ya fuerza la identidad en Program.cs.
+  - El web ya la fuerza (o usa env var SB0T_WEB_IDENTITY para override).
+
+================================================================================
+ FIN DEL DOCUMENTO
+================================================================================

@@ -239,8 +239,8 @@ namespace core
 
         private static void Command(AresClient client, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
             Command cmd = new Command { Text = text, Args = String.Empty };
             Helpers.PopulateCommand(cmd);
@@ -326,8 +326,8 @@ namespace core
             String name = packet.ReadString(client);
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
             PMEventArgs args = new PMEventArgs { Cancel = false, Text = text };
 
@@ -395,8 +395,8 @@ namespace core
         {
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
             if (text.StartsWith("#login") || text.StartsWith("#register"))
             {
@@ -523,8 +523,8 @@ namespace core
 
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
             Events.EmoteReceived(client, text);
 

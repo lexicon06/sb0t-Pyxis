@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sb0t Pyxis — Hashlink Decoder</title>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #0f1117; color: #e6e8ee;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #8b90a0; font-size: 13px; margin: 0 0 20px; }
+  .card {
+    background: #171a22; border: 1px solid #262b38; border-radius: 10px; padding: 18px;
+    max-width: 720px; margin-bottom: 14px;
+  }
+  label { display: block; font-size: 13px; margin: 0 0 6px; color: #aab0c0; }
+  textarea {
+    width: 100%; min-height: 64px; resize: vertical; font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px; background: #0d0f14; color: #e6e8ee; border: 1px solid #2a2f3d;
+    border-radius: 6px; padding: 10px;
+  }
+  .row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  button {
+    font-size: 14px; padding: 8px 18px; border-radius: 6px; border: 0; cursor: pointer; font-weight: 600;
+  }
+  #decodeBtn { background: #2f81f7; color: #fff; }
+  #copyBtn   { background: #2a2f3d; color: #e6e8ee; }
+  .result { margin-top: 14px; display: none; }
+  .result.show { display: block; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #222736; font-size: 14px; }
+  th { color: #8b90a0; width: 120px; font-weight: 600; }
+  .err { color: #ff6b6b; margin-top: 12px; font-size: 13px; display: none; }
+  .err.show { display: block; }
+</style>
+</head>
+<body>
+  <h1>sb0t Pyxis — Hashlink Decoder</h1>
+  <p class="sub">Decodifica / codifica hashlinks (<code>arlnk://...</code>) de chat rooms.</p>
+
+  <div class="card">
+    <label for="input">Hashlink (pegá uno de la sala)</label>
+    <textarea id="input" placeholder="arlnk://..."></textarea>
+    <div class="row">
+      <button id="decodeBtn">Decodificar</button>
+      <button id="copyBtn">Copiar resultado</button>
+    </div>
+    <div class="result" id="result">
+      <hr style="border-color:#222736; margin:14px 0;">
+      <table>
+        <tr><th>IP</th><td id="r-ip"></td></tr>
+        <tr><th>Puerto</th><td id="r-port"></td></tr>
+        <tr><th>Nombre</th><td id="r-name"></td></tr>
+        <tr><th>URL arlnk</th><td id="r-url"></td></tr>
+      </table>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="card">
+    <label for="name">Nombre de la sala</label>
+    <input type="text" id="name" placeholder="Mi sala" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #2a2f3d;background:#0d0f14;color:#e6e8ee;">
+    <label style="margin-top:10px;">IP</label>
+    <input type="text" id="ip" placeholder="127.0.0.1" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #2a2f3d;background:#0d0f14;color:#e6e8ee;">
+    <label style="margin-top:10px;">Puerto</label>
+    <input type="number" id="port" value="54321" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #2a2f3d;background:#0d0f14;color:#e6e8ee;">
+    <div class="row">
+      <button id="encBtn" style="background:#2a2f3d;color:#e6e8ee;">Codificar</button>
+    </div>
+    <div class="err" id="enc-err"></div>
+  </div>
+
+<script>
+const HASH_IV = 28435;
+
+// --- cifrado/descifrado (espejo de core.Hashlink d67/e67) ---
+function d67(data, b = HASH_IV) {
+  const out = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    out[i] = data[i] ^ ((b >> 8) & 0xFF);
+    b = ((b + data[i]) * 23219 + 36126) & 0xFFFF;
+  }
+  return out;
+}
+function e67(data, b = HASH_IV) {
+  const out = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    out[i] = (data[i] ^ (b >> 8)) & 0xFF;
+    b = ((out[i] + b) * 23219 + 36126) & 0xFFFF;
+  }
+  return out;
+}
+
+function concatUint8(arrays) {
+  const total = arrays.reduce((n, a) => n + a.length, 0);
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const a of arrays) { out.set(a, o); o += a.length; }
+  return out;
+}
+
+// --- encode (armar arlnk://) ---
+function encodeHashlink({ ip, port, name }) {
+  const portBuf = new Uint8Array(2);
+  new DataView(portBuf.buffer).setUint16(0, port, true);
+  const parts = [
+    new Uint8Array(20),
+    new TextEncoder().encode("CHATCHANNEL\x00"),
+    Uint8Array.from(ip.split(".").map(Number)),
+    portBuf,
+    Uint8Array.from(ip.split(".").map(Number)),
+    new TextEncoder().encode(name),
+    Uint8Array.of(0, 0)
+  ];
+  return btoa(String.fromCharCode(...e67(pako.deflate(concatUint8(parts)))));
+}
+
+// --- decode (leer arlnk://) ---
+function decodeHashlink(hashlink) {
+  let s = hashlink.trim();
+  if (s.startsWith("arlnk://")) s = s.slice(8);
+
+  if (s.toUpperCase().startsWith("CHATROOM:")) {
+    s = s.slice(9);
+    const i = s.indexOf(":");
+    const ip = s.slice(0, i);
+    s = s.slice(i + 1);
+    const j = s.indexOf("|");
+    return { ip, port: parseInt(s.slice(0, j), 10), name: s.slice(j + 1) };
+  }
+
+  const raw = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const clear = pako.inflate(d67(raw));
+  const dv = new DataView(clear.buffer, clear.byteOffset);
+
+  let off = 32;
+  const ip = Array.from(clear.subarray(off, off + 4)).join(".");
+  off += 4;
+  const port = dv.getUint16(off, true);
+  off += 2;
+  off += 4;
+  let end = clear.indexOf(0, off);
+  if (end === -1) end = clear.length;
+  const name = new TextDecoder().decode(clear.subarray(off, end));
+
+  return { ip, port, name };
+}
+
+// --- UI ---
+const $ = (id) => document.getElementById(id);
+
+function showResult(r) {
+  $("r-ip").textContent = r.ip;
+  $("r-port").textContent = r.port;
+  $("r-name").textContent = r.name;
+  $("r-url").textContent = "arlnk://" + encodeHashlink(r);
+  $("result").classList.add("show");
+  $("err").classList.remove("show");
+}
+
+$("decodeBtn").addEventListener("click", () => {
+  try {
+    const r = decodeHashlink($("input").value);
+    if (!r) throw new Error("hashlink inválido");
+    showResult(r);
+  } catch (e) {
+    $("err").textContent = "No se pudo decodificar: " + e.message;
+    $("err").classList.add("show");
+    $("result").classList.remove("show");
+  }
+});
+
+$("encBtn").addEventListener("click", () => {
+  try {
+    const ip = $("ip").value.trim();
+    const port = parseInt($("port").value, 10);
+    const name = $("name").value.trim();
+    if (!ip || !/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) throw new Error("IP inválida");
+    if (!(port > 0 && port < 65536)) throw new Error("Puerto inválido");
+    $("input").value = "arlnk://" + encodeHashlink({ ip, port, name });
+    $("enc-err").classList.remove("show");
+    const r = decodeHashlink($("input").value);
+    showResult(r);
+  } catch (e) {
+    $("enc-err").textContent = "No se pudo codificar: " + e.message;
+    $("enc-err").classList.add("show");
+  }
+});
+
+$("copyBtn").addEventListener("click", () => {
+  const text = `IP: ${$("r-ip").textContent}\nPuerto: ${$("r-port").textContent}\nNombre: ${$("r-name").textContent}\nalrnk://${encodeHashlink({ip:$("r-ip").textContent, port:parseInt($("r-port").textContent,10), name:$("r-name").textContent})}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const old = $("copyBtn").textContent;
+    $("copyBtn").textContent = "¡Copiado!";
+    setTimeout(() => { $("copyBtn").textContent = old; }, 1200);
+  });
+});
+</script>
+</body>
+</html>

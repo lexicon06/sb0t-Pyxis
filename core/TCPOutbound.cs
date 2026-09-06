@@ -395,10 +395,10 @@ namespace core
 
         public static byte[] Public(AresClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
-            while (Encoding.UTF8.GetByteCount(text) > 300)
+            while (Encoding.UTF8.GetByteCount(text) > 1000)
                 text = text.Substring(0, text.Length - 1);
 
             TCPPacketWriter packet = new TCPPacketWriter();
@@ -409,10 +409,10 @@ namespace core
 
         public static byte[] Emote(AresClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
-            while (Encoding.UTF8.GetByteCount(text) > 300)
+            while (Encoding.UTF8.GetByteCount(text) > 1000)
                 text = text.Substring(0, text.Length - 1);
 
             TCPPacketWriter packet = new TCPPacketWriter();
@@ -423,10 +423,10 @@ namespace core
 
         public static byte[] Private(IClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            if (text.Length > 1000)
+                text = text.Substring(0, 1000);
 
-            while (Encoding.UTF8.GetByteCount(text) > 300)
+            while (Encoding.UTF8.GetByteCount(text) > 1000)
                 text = text.Substring(0, text.Length - 1);
 
             TCPPacketWriter packet = new TCPPacketWriter();

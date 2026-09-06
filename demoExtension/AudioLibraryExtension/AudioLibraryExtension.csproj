@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>AudioLibraryExtension</RootNamespace>
+    <AssemblyName>extension</AssemblyName>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the sb0t Pyxis host interface (IExtension, IHostApp, IUser, ...) -->
+    <ProjectReference Include="..\..\iconnect\iconnect.csproj" />
+  </ItemGroup>
+
+</Project>
