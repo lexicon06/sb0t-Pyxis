@@ -396,10 +396,7 @@ namespace core.ib0t
             {
                 len = Encoding.UTF8.GetByteCount(text);
 
-                // WebOutbound.PrivateTo truncates to 1000 chars, so allow
-                // longer text up to that limit here (was <=300 and silently
-                // dropped longer PMs instead of delivering/truncating).
-                if (len > 0 && len <= 1000)
+                if (len > 0 && len <= 300)
                     this.QueuePacket(WebOutbound.PrivateTo(this, sender, text));
             }
         }

@@ -501,8 +501,8 @@ namespace core.ib0t
             String name = tmp.Substring(0, n_len);
             String text = tmp.Substring(n_len, t_len);
 
-            if (text.Length > 1000)
-                text = text.Substring(0, 1000);
+            if (text.Length > 300)
+                text = text.Substring(0, 300);
 
             PMEventArgs args = new PMEventArgs { Cancel = false, Text = text };
 
