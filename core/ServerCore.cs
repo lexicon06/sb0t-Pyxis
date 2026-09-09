@@ -790,15 +790,21 @@ namespace core
             {
                 core.LinkHub.LinkPacket packet = null;
 
-                while ((packet = leaf.NextReceivedPacket) != null && leaf.SocketConnected)
+                while (leaf.SocketConnected)
                     try
                     {
+                        packet = leaf.NextReceivedPacket;
+
+                        if (packet == null)
+                            break;
+
                         core.LinkHub.HubProcessor.Eval(leaf, packet.Msg, packet.Packet, time, mode);
                     }
                     catch (Exception e)
                     {
                         leaf.Disconnect();
-                        Log("packet read fail from leaf " + leaf.Ident + " " + packet.Msg, e);
+                        Log("packet read fail from leaf " + leaf.Ident + " " +
+                            (packet != null ? packet.Msg.ToString() : "?"), e);
                         break;
                     }
 

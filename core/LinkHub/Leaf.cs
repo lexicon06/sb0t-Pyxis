@@ -19,6 +19,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Net;
@@ -114,6 +115,9 @@ namespace core.LinkHub
 
                 if (this.data_in.Count >= (size + 3))
                 {
+                    if (size < 3)
+                        throw new InvalidDataException("leaf frame payload too short (" + size + " bytes)");
+
                     byte[] data = this.data_in.GetRange(3, size).ToArray();
                     this.data_in.RemoveRange(0, (size + 3));
                     LinkPacket packet = new LinkPacket();
