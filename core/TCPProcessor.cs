@@ -151,6 +151,12 @@ namespace core
 
         private static void LinkProto(AresClient client, TCPPacketReader packet, ulong time)
         {
+            if (packet.ToArray().Length < 4)
+            {
+                client.Disconnect();
+                return;
+            }
+
             Leaf leaf = new Leaf(client.Sock, time, packet.ToArray());
             client.IsLeaf = true;
             client.Sock = null;
