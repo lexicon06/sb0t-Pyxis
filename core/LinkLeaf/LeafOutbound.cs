@@ -57,6 +57,28 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
+        // Relay a local user's public text to the linked users, the same way the
+        // community script does (per-user "print"): custom name -> "customName+text",
+        // otherwise a server line "\x03""01"name"> ""\x03""12"text. This is delivered
+        // as MSG_CHANNEL_SERVER_NOSUCH on the other side, so it always renders.
+        public static void RelayPublicText(String sender, String customName, String text)
+        {
+            if (!(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready))
+                return;
+
+            String line = String.IsNullOrEmpty(customName)
+                ? "\u0003" + "01" + sender + "> " + "\u0003" + "12" + text
+                : customName + text;
+
+            int sent = 0;
+
+            foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                leaf.Users.ForEach(x => { x.Print(line); sent++; });
+
+            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " linked users (" +
+                ServerCore.Linker.Leaves.Count + " leaves)");
+        }
+
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)
         {
             TCPPacketWriter packet = new TCPPacketWriter();

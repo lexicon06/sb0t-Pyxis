@@ -1076,11 +1076,7 @@ namespace core.ib0t
                             ib0t.WebOutbound.PublicTo(x, client.Name, text) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                        if (ServerCore.Linker.Busy)
-                            ServerLog.Channel("link", "local text: " + client.Name + " (phase=" + ServerCore.Linker.LoginPhase + ")");
-
-                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafPublicText(ServerCore.Linker, client.Name, client.CustomName, text));
+                        LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, text);
 
                         Events.TextSent(client, text);
                     }
