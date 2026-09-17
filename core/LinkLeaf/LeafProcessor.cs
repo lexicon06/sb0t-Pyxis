@@ -234,6 +234,8 @@ namespace core.LinkLeaf
             if (img == null)
                 return;
 
+            ServerLog.Channel("link", "recv-scribble " + sender + " (" + img.Length + " bytes)");
+
             AresClient ac = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
             if (ac != null)
@@ -262,6 +264,8 @@ namespace core.LinkLeaf
 
             if (img == null)
                 return;
+
+            ServerLog.Channel("link", "recv-scribble-leaf " + sender + " (" + img.Length + " bytes)");
 
             UserPool.AUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                 x => x.LoggedIn && !x.Quarantined && x.CustomClient);
@@ -335,6 +339,8 @@ namespace core.LinkLeaf
 
                 if (client != null)
                     client.IUser.Audio(sender, Convert.ToBase64String(audio));
+
+                ServerLog.Channel("link", "recv-audio from " + sender + " to " + target + " (" + audio.Length + " bytes)");
             }
             catch (Exception e)
             {
@@ -985,6 +991,8 @@ namespace core.LinkLeaf
                 }
 
             LinkUser user = ResolveLinkedUser(link, leaf, leaf_ident, name);
+
+            ServerLog.Channel("link", "recv-avatar " + name + " (" + avatar.Length + " bytes)");
 
             if (Events.AvatarReceived(user))
             {

@@ -333,6 +333,23 @@ namespace linktest
             Check(leafGotHubCustom, "leaf lee hub CON customname (link-recv: @HUB@msg-custom-hub)");
             Check(hubGotLeafCustom, "hub lee leaf CON customname (link-recv: @LEAF@msg-custom-leaf)");
 
+            String hubLink = ReadLinkLog(hubDir);
+            String leafLink = ReadLinkLog(leafDir);
+
+            Console.WriteLine();
+            Console.WriteLine("===== HUB link.log =====");
+            Console.WriteLine(hubLink);
+            Console.WriteLine("===== LEAF link.log =====");
+            Console.WriteLine(leafLink);
+            Console.WriteLine();
+
+            Check(leafLink.Contains("recv-audio from hubaudio"), "leaf recibe AUDIO del hub");
+            Check(leafLink.Contains("recv-avatar hubavatar"), "leaf recibe AVATAR del hub");
+            Check(leafLink.Contains("recv-scribble hubscribble"), "leaf recibe SCRIBBLE del hub");
+            Check(hubLink.Contains("recv-audio from leafaudio"), "hub recibe AUDIO del leaf");
+            Check(hubLink.Contains("recv-avatar leafavatar"), "hub recibe AVATAR del leaf");
+            Check(hubLink.Contains("recv-scribble leafscribble"), "hub recibe SCRIBBLE del leaf");
+
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
             return failed == 0 ? 0 : 1;
@@ -379,6 +396,55 @@ namespace linktest
             {
                 return "(error leyendo chatlog: " + e.Message + ")";
             }
+        }
+
+        private static String ReadLinkLog(String identityDir)
+        {
+            try
+            {
+                String path = Path.Combine(identityDir, "logs", "link.log");
+                return File.Exists(path) ? File.ReadAllText(path) : "(sin link.log)";
+            }
+            catch (Exception e)
+            {
+                return "(error leyendo link.log: " + e.Message + ")";
+            }
+        }
+
+        private delegate byte[] ChunkEncoder(int total, int index, byte[] chunk);
+
+        private static void SendChunks(LinkClient link, int size, int seed, ChunkEncoder enc)
+        {
+            byte[] data = new byte[size];
+            new Random(seed).NextBytes(data);
+            int total = (size + 39999) / 40000;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * 40000;
+                int len = Math.Min(40000, size - off);
+                byte[] chunk = new byte[len];
+                Buffer.BlockCopy(data, off, chunk, 0, len);
+                link.SendPacket(enc(total, i, chunk));
+            }
+        }
+
+        private static void SendMedia(LinkClient link, String tag)
+        {
+            uint ident = link.Leaves.Count > 0 ? link.Leaves[0].Ident : 0;
+            core.LinkLeaf.LinkUser target = new core.LinkLeaf.LinkUser(ident);
+            target.SetName("targetuser");
+
+            SendChunks(link, 90000, 7, (total, index, chunk) =>
+                LeafOutbound.LeafAudio(link, target, tag + "audio", (ushort)total, (ushort)index, chunk));
+
+            SendChunks(link, 70000, 11, (total, index, chunk) =>
+                LeafOutbound.LeafAvatar(link, tag + "avatar", (ushort)total, (ushort)index, chunk));
+
+            SendChunks(link, 110000, 13, (total, index, chunk) =>
+                LeafOutbound.LeafScribbleUser(link, target, tag + "scribble", 10, (ushort)total, (ushort)index, chunk));
+
+            Console.WriteLine("[" + tag + "] media sent: audio 90000, avatar 70000, scribble 110000");
         }
 
         private static void ConfigureIdentity(String identity, ushort port, String name, byte[] guid, int linkMode)
@@ -439,6 +505,8 @@ namespace linktest
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub"));
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser2", "@HUB@", "msg-custom-hub"));
 
+            SendMedia(ServerCore.Linker, "hub");
+
             Thread.Sleep(6000);
             Console.WriteLine("[hub] done");
             Environment.Exit(0);
@@ -486,6 +554,8 @@ namespace linktest
             Console.WriteLine("[leaf] sending public text as leafuser (sin custom) y leafuser2 (con custom)");
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "", "hola-desde-leaf"));
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser2", "@LEAF@", "msg-custom-leaf"));
+
+            SendMedia(ServerCore.Linker, "leaf");
 
             Thread.Sleep(6000);
             Console.WriteLine("[leaf] done");

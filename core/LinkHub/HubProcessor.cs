@@ -927,13 +927,17 @@ namespace core.LinkHub
             LinkUser user = leaf.Users.Find(x => x.Name == name);
 
             if (user != null)
-            {
                 user.Avatar = avatar;
-
-                if (leaf.LoginPhase == LinkLogin.Ready)
-                    LeafPool.Leaves.ForEachWhere(x => HubOutbound.SendAvatar(x, leaf.Ident, user),
-                        x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
+            else
+            {
+                user = new LinkUser(leaf.Ident);
+                user.Name = name;
+                user.Avatar = avatar;
             }
+
+            if (leaf.LoginPhase == LinkLogin.Ready)
+                LeafPool.Leaves.ForEachWhere(x => HubOutbound.SendAvatar(x, leaf.Ident, user),
+                    x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 
         private static void LeafCustomName(Leaf leaf, TCPPacketReader packet)
