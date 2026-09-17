@@ -110,7 +110,7 @@ namespace core.LinkHub
                 if (this.data_in.Count < 3)
                     return null;
 
-                ushort size = BitConverter.ToUInt16(this.data_in.ToArray(), 0);
+                ushort size = (ushort)(this.data_in[0] | (this.data_in[1] << 8));
                 byte id = this.data_in[2];
 
                 if (this.data_in.Count >= (size + 3))
@@ -118,11 +118,14 @@ namespace core.LinkHub
                     if (size < 3)
                         throw new InvalidDataException("leaf frame payload too short (" + size + " bytes)");
 
-                    byte[] data = this.data_in.GetRange(3, size).ToArray();
+                    byte[] data = new byte[size];
+                    this.data_in.CopyTo(3, data, 0, size);
                     this.data_in.RemoveRange(0, (size + 3));
                     LinkPacket packet = new LinkPacket();
                     packet.Msg = (LinkMsg)data[2];
-                    packet.Packet = new TCPPacketReader(data.Skip(3).ToArray());
+                    byte[] payload = new byte[size - 3];
+                    Buffer.BlockCopy(data, 3, payload, 0, size - 3);
+                    packet.Packet = new TCPPacketReader(payload);
                     return packet;
                 }
 

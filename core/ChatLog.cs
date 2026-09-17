@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,11 +26,18 @@ namespace core
 {
     class ChatLog
     {
+        private static readonly object _lock = new object();
+        private static StreamWriter writer;
+        private static String open_path;
+
         public static void WriteLine(String text)
         {
-            if (Settings.Get<bool>("logging"))
+            if (!Settings.Get<bool>("logging"))
+                return;
+
+            try
             {
-                try
+                lock (_lock)
                 {
                     DateTime d = DateTime.Now;
 
@@ -41,10 +48,31 @@ namespace core
 
                     path += ("\\" + d.Day + " " + d.Month + " " + d.Year + ".txt");
 
-                    using (StreamWriter writer = File.Exists(path) ? File.AppendText(path) : File.CreateText(path))
-                        writer.WriteLine(d.ToShortTimeString() + " " + text);
+                    if (writer == null || open_path != path)
+                    {
+                        if (writer != null)
+                            try { writer.Dispose(); } catch { }
+
+                        writer = new StreamWriter(path, true);
+                        writer.AutoFlush = true;
+                        open_path = path;
+                    }
+
+                    writer.WriteLine(d.ToShortTimeString() + " " + text);
                 }
-                catch { }
+            }
+            catch { }
+        }
+
+        public static void Close()
+        {
+            lock (_lock)
+            {
+                if (writer != null)
+                    try { writer.Dispose(); } catch { }
+
+                writer = null;
+                open_path = null;
             }
         }
     }

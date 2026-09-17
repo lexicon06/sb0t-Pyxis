@@ -325,6 +325,8 @@ namespace core.LinkLeaf
             String sender = packet.ReadString(link);
             String text = packet.ReadString(link);
 
+            ChatLog.WriteLine("link-recv: " + sender + "> " + text);
+
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Public(x, sender, text)),
                 x => x.LoggedIn && !x.Quarantined);
 
@@ -336,6 +338,8 @@ namespace core.LinkLeaf
         {
             String sender = packet.ReadString(link);
             String text = packet.ReadString(link);
+
+            ChatLog.WriteLine("link-recv: " + sender + " " + text);
 
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, sender, text)),
                 x => x.LoggedIn && !x.Quarantined);

@@ -16,24 +16,51 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
 namespace core
 {
     class Crypto
     {
+        private sealed class CachedAes
+        {
+            public byte[] Iv;
+            public Aes Aes;
+        }
+
+        private static readonly ConditionalWeakTable<byte[], CachedAes> aes_cache = new ConditionalWeakTable<byte[], CachedAes>();
+        private static readonly RandomNumberGenerator rng = RandomNumberGenerator.Create();
+
+        private static Aes GetAes(byte[] key, byte[] iv)
+        {
+            CachedAes cached;
+
+            if (aes_cache.TryGetValue(key, out cached) && ReferenceEquals(cached.Iv, iv))
+                return cached.Aes;
+
+            Aes aes = Aes.Create();
+            aes.Key = key;
+            aes.IV = iv;
+
+            cached = new CachedAes { Iv = iv, Aes = aes };
+            aes_cache.Remove(key);
+            aes_cache.Add(key, cached);
+
+            return aes;
+        }
+
         public static byte[] Encrypt(byte[] data, byte[] key, byte[] iv)
         {
             byte[] result;
 
             using (MemoryStream ms = new MemoryStream())
-            using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-            using (ICryptoTransform enc = aes.CreateEncryptor(key, iv))
+            using (ICryptoTransform enc = GetAes(key, iv).CreateEncryptor())
             using (CryptoStream cs = new CryptoStream(ms, enc, CryptoStreamMode.Write))
             {
                 cs.Write(data, 0, data.Length);
@@ -49,8 +76,7 @@ namespace core
             byte[] result;
 
             using (MemoryStream ms = new MemoryStream(data))
-            using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-            using (ICryptoTransform enc = aes.CreateDecryptor(key, iv))
+            using (ICryptoTransform enc = GetAes(key, iv).CreateDecryptor())
             using (CryptoStream cs = new CryptoStream(ms, enc, CryptoStreamMode.Read))
             using (MemoryStream output = new MemoryStream())
             {
@@ -70,11 +96,8 @@ namespace core
         {
             get
             {
-                byte[] result;
-
-                using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-                    result = aes.Key;
-
+                byte[] result = new byte[32];
+                rng.GetBytes(result);
                 return result;
             }
         }
@@ -83,11 +106,8 @@ namespace core
         {
             get
             {
-                byte[] result;
-
-                using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-                    result = aes.IV;
-
+                byte[] result = new byte[16];
+                rng.GetBytes(result);
                 return result;
             }
         }

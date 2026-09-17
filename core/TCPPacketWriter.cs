@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,72 +26,109 @@ namespace core
 {
     class TCPPacketWriter
     {
-        private List<byte> Data = new List<byte>();
+        private byte[] Data = new byte[256];
+        private int Count = 0;
 
         public int GetByteCount()
         {
-            return this.Data.Count;
+            return this.Count;
+        }
+
+        private void EnsureCapacity(int extra)
+        {
+            int needed = this.Count + extra;
+
+            if (needed <= this.Data.Length)
+                return;
+
+            int size = this.Data.Length;
+
+            while (size < needed)
+                size *= 2;
+
+            byte[] bigger = new byte[size];
+            Buffer.BlockCopy(this.Data, 0, bigger, 0, this.Count);
+            this.Data = bigger;
         }
 
         public void WriteByte(byte b)
         {
-            this.Data.Add(b);
+            this.EnsureCapacity(1);
+            this.Data[this.Count++] = b;
         }
 
         public void WriteBytes(byte[] b)
         {
-            this.Data.AddRange(b);
+            if (b == null || b.Length == 0)
+                return;
+
+            this.EnsureCapacity(b.Length);
+            Buffer.BlockCopy(b, 0, this.Data, this.Count, b.Length);
+            this.Count += b.Length;
         }
 
         public void WriteGuid(Guid g)
         {
-            this.Data.AddRange(g.ToByteArray());
+            this.WriteBytes(g.ToByteArray());
         }
 
         public void WriteUInt16(ushort i)
         {
-            this.Data.AddRange(BitConverter.GetBytes(i));
+            this.EnsureCapacity(2);
+            this.Data[this.Count] = (byte)i;
+            this.Data[this.Count + 1] = (byte)(i >> 8);
+            this.Count += 2;
         }
 
         public void WriteUInt32(uint i)
         {
-            this.Data.AddRange(BitConverter.GetBytes(i));
+            this.EnsureCapacity(4);
+            this.Data[this.Count] = (byte)i;
+            this.Data[this.Count + 1] = (byte)(i >> 8);
+            this.Data[this.Count + 2] = (byte)(i >> 16);
+            this.Data[this.Count + 3] = (byte)(i >> 24);
+            this.Count += 4;
         }
 
         public void WriteUInt64(ulong i)
         {
-            this.Data.AddRange(BitConverter.GetBytes(i));
+            this.EnsureCapacity(8);
+
+            for (int b = 0; b < 8; b++)
+                this.Data[this.Count + b] = (byte)(i >> (8 * b));
+
+            this.Count += 8;
         }
 
         public void WriteIP(String ip_string)
         {
-            this.Data.AddRange(IPAddress.Parse(ip_string).GetAddressBytes());
+            this.WriteBytes(IPAddress.Parse(ip_string).GetAddressBytes());
         }
 
         public void WriteIP(long ip_numeric)
         {
             byte[] temp = BitConverter.GetBytes((uint)ip_numeric);
             Array.Reverse(temp);
-            this.Data.AddRange(new IPAddress(temp).GetAddressBytes());
+            this.WriteBytes(new IPAddress(temp).GetAddressBytes());
         }
 
         public void WriteIP(byte[] ip_bytes)
         {
             if (ip_bytes.Length != 4) return;
-            this.Data.AddRange(new IPAddress(ip_bytes).GetAddressBytes());
+            this.WriteBytes(new IPAddress(ip_bytes).GetAddressBytes());
         }
 
         public void WriteIP(IPAddress ip_object)
         {
-            this.Data.AddRange(ip_object.GetAddressBytes());
+            this.WriteBytes(ip_object.GetAddressBytes());
         }
 
         public void WriteString(String text, bool nulled, bool unenc)
         {
-            this.Data.AddRange(Encoding.UTF8.GetBytes(text));
+            this.WriteBytes(Encoding.UTF8.GetBytes(text));
 
             if (nulled)
-                this.Data.Add(0);
+                this.WriteByte(0);
         }
 
         public void WriteString(IClient client, String text)
@@ -108,10 +145,10 @@ namespace core
                 this.WriteUInt16((ushort)data.Length);
                 this.WriteBytes(data);
             }
-            else this.Data.AddRange(Encoding.UTF8.GetBytes(text));
+            else this.WriteBytes(Encoding.UTF8.GetBytes(text));
 
             if (null_terminated)
-                this.Data.Add(0);
+                this.WriteByte(0);
         }
 
         public void WriteString(core.LinkHub.Leaf leaf, String text)
@@ -127,7 +164,7 @@ namespace core
             this.WriteBytes(data);
 
             if (null_terminated)
-                this.Data.Add(0);
+                this.WriteByte(0);
         }
 
         public void WriteString(core.LinkLeaf.LinkClient client, String text)
@@ -143,7 +180,7 @@ namespace core
             this.WriteBytes(data);
 
             if (null_terminated)
-                this.Data.Add(0);
+                this.WriteByte(0);
         }
 
         public void ReplaceByte(byte b, int i)
@@ -153,23 +190,29 @@ namespace core
 
         public byte[] ToByteArray()
         {
-            return this.Data.ToArray();
+            byte[] result = new byte[this.Count];
+            Buffer.BlockCopy(this.Data, 0, result, 0, this.Count);
+            return result;
         }
 
         public byte[] ToAresPacket(TCPMsg packet_id)
         {
-            List<byte> tmp = new List<byte>(this.Data.ToArray());
-            tmp.Insert(0, (byte)packet_id);
-            tmp.InsertRange(0, BitConverter.GetBytes((ushort)(tmp.Count - 1)));
-            return tmp.ToArray();
+            byte[] result = new byte[this.Count + 3];
+            result[0] = (byte)this.Count;
+            result[1] = (byte)(this.Count >> 8);
+            result[2] = (byte)packet_id;
+            Buffer.BlockCopy(this.Data, 0, result, 3, this.Count);
+            return result;
         }
 
         public byte[] ToLinkPacket(core.LinkHub.LinkMsg msg)
         {
-            List<byte> tmp = new List<byte>(this.Data.ToArray());
-            tmp.Insert(0, (byte)msg);
-            tmp.InsertRange(0, BitConverter.GetBytes((ushort)(tmp.Count - 1)));
-            return tmp.ToArray();
+            byte[] result = new byte[this.Count + 3];
+            result[0] = (byte)this.Count;
+            result[1] = (byte)(this.Count >> 8);
+            result[2] = (byte)msg;
+            Buffer.BlockCopy(this.Data, 0, result, 3, this.Count);
+            return result;
         }
     }
 }

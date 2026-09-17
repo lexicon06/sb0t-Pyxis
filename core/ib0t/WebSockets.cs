@@ -28,41 +28,46 @@ namespace core.ib0t
     {
         public static byte[] Html5TextPacket(String str, bool old_proto)
         {
+            byte[] text = Encoding.UTF8.GetBytes(str);
+
             if (old_proto)
             {
-                List<byte> list = new List<byte>();
-                list.Add(0);
-                list.AddRange(Encoding.UTF8.GetBytes(str));
-                list.Add(255);
-                return list.ToArray();
+                byte[] old = new byte[text.Length + 2];
+                old[0] = 0;
+                Buffer.BlockCopy(text, 0, old, 1, text.Length);
+                old[old.Length - 1] = 255;
+                return old;
+            }
+
+            int header = text.Length <= 125 ? 2 : (text.Length < 65535 ? 4 : 10);
+            byte[] result = new byte[header + text.Length];
+            result[0] = 129;
+            int p = 1;
+
+            if (text.Length <= 125)
+                result[p++] = (byte)text.Length;
+            else if (text.Length < 65535)
+            {
+                result[p++] = 126;
+                result[p++] = (byte)(text.Length >> 8);
+                result[p++] = (byte)text.Length;
             }
             else
             {
-                byte[] text = Encoding.UTF8.GetBytes(str);
-                List<byte> list = new List<byte>();
-                list.Add(129);
+                result[p++] = 127;
+                ulong l = (ulong)text.Length;
 
-                if (text.Length <= 125)
-                    list.Add((byte)text.Length);
-                else if (text.Length < 65535)
+                for (int i = 7; i >= 0; i--)
                 {
-                    list.Add(126);
-                    byte[] len = BitConverter.GetBytes((ushort)text.Length);
-                    Array.Reverse(len);
-                    list.AddRange(len);
-                }
-                else
-                {
-                    list.Add(127);
-                    byte[] len = BitConverter.GetBytes((ulong)text.Length);
-                    Array.Reverse(len);
-                    list.AddRange(len);
+                    result[p + i] = (byte)l;
+                    l >>= 8;
                 }
 
-                list.AddRange(text);
-
-                return list.ToArray();
+                p += 8;
             }
+
+            Buffer.BlockCopy(text, 0, result, p, text.Length);
+            return result;
         }
 
         public static byte[] Html5HandshakeReplyPacket(Html5RequestEventArgs e)

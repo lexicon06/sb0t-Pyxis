@@ -101,6 +101,8 @@ namespace core
 
         private List<byte> data_in = new List<byte>();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
+
+        private byte[] recv_buffer = new byte[8192];
         private int socket_health = 0;
         private byte[] avatar = new byte[] { };
         private String personal_message = String.Empty;
@@ -688,7 +690,7 @@ namespace core
                 catch { break; }
             }
 
-            byte[] buffer = new byte[8192];
+            byte[] buffer = this.recv_buffer;
             int received = 0;
             SocketError e = SocketError.Success;
 
@@ -700,7 +702,7 @@ namespace core
             else
             {
                 this.socket_health = 0;
-                this.data_in.AddRange(buffer.Take(received));
+                this.data_in.AddRange(new ArraySegment<byte>(buffer, 0, received));
                 Stats.DataReceived += (ulong)received;
             }
 
@@ -823,15 +825,17 @@ namespace core
                 if (this.data_in.Count < 3)
                     return null;
 
-                ushort size = BitConverter.ToUInt16(this.data_in.ToArray(), 0);
+                ushort size = (ushort)(this.data_in[0] | (this.data_in[1] << 8));
                 byte id = this.data_in[2];
 
                 if (this.data_in.Count >= (size + 3))
                 {
+                    byte[] data = new byte[size];
+                    this.data_in.CopyTo(3, data, 0, size);
+                    this.data_in.RemoveRange(0, (size + 3));
                     TCPPacket packet = new TCPPacket();
                     packet.Msg = (TCPMsg)id;
-                    packet.Packet = new TCPPacketReader(this.data_in.GetRange(3, size).ToArray());
-                    this.data_in.RemoveRange(0, (size + 3));
+                    packet.Packet = new TCPPacketReader(data);
                     return packet;
                 }
 

@@ -298,6 +298,7 @@ namespace core.LinkLeaf
             this.HubName = Settings.Name;
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
+            this.Sock.NoDelay = true;
             ServerLog.Channel("link", "hub mode: connecting to self on port " + Settings.Port);
 
             try
@@ -348,6 +349,7 @@ namespace core.LinkLeaf
             this.HubName = obj.Name;
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
+            this.Sock.NoDelay = true;
             ServerLog.Channel("link", "connecting to hub '" + obj.Name + "' at " + obj.IP + ":" + obj.Port);
 
             try
@@ -432,16 +434,19 @@ namespace core.LinkLeaf
                 if (this.data_in.Count < 3)
                     return null;
 
-                ushort size = BitConverter.ToUInt16(this.data_in.ToArray(), 0);
+                ushort size = (ushort)(this.data_in[0] | (this.data_in[1] << 8));
                 byte id = this.data_in[2];
 
                 if (this.data_in.Count >= (size + 3))
                 {
-                    byte[] data = this.data_in.GetRange(3, size).ToArray();
+                    byte[] data = new byte[size];
+                    this.data_in.CopyTo(3, data, 0, size);
                     this.data_in.RemoveRange(0, (size + 3));
                     core.LinkHub.LinkPacket packet = new core.LinkHub.LinkPacket();
                     packet.Msg = (core.LinkHub.LinkMsg)data[2];
-                    packet.Packet = new TCPPacketReader(data.Skip(3).ToArray());
+                    byte[] payload = new byte[size - 3];
+                    Buffer.BlockCopy(data, 3, payload, 0, size - 3);
+                    packet.Packet = new TCPPacketReader(payload);
                     return packet;
                 }
 

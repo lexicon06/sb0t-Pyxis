@@ -85,6 +85,8 @@ namespace core.ib0t
         private List<byte> data_in = new List<byte>();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
 
+        private byte[] recv_buffer = new byte[8192];
+
         // Security limits for untrusted web clients. Oversized frames are
         // dropped (not honoured and not buffered) instead of disconnecting
         // the user, so an attacker cannot exhaust server memory.
@@ -171,21 +173,17 @@ namespace core.ib0t
             byte[] buf = Zip.Decompress(img);
             String height = h.ToString();
             String base64 = Convert.ToBase64String(buf);
-            List<String> packets = new List<String>();
 
-            while (base64.Length > 1024)
+            int total = (base64.Length + 1023) / 1024;
+
+            this.QueuePacket(WebOutbound.ScribbleHead(this, sender, total, height));
+
+            for (int i = 0; i < total; i++)
             {
-                packets.Add(base64.Substring(0, 1024));
-                base64 = base64.Substring(1024);
+                int off = i * 1024;
+                int len = Math.Min(1024, base64.Length - off);
+                this.QueuePacket(WebOutbound.ScribbleBlock(this, base64.Substring(off, len)));
             }
-
-            if (base64.Length > 0)
-                packets.Add(base64);
-
-            this.QueuePacket(WebOutbound.ScribbleHead(this, sender, packets.Count, height));
-
-            foreach (String str in packets)
-                this.QueuePacket(WebOutbound.ScribbleBlock(this, str));
         }
         public void Scribble2(String sender, String img, int h)
         {
@@ -194,21 +192,17 @@ namespace core.ib0t
 
             String height = h.ToString();
             String base64 = img;
-            List<String> packets = new List<String>();
 
-            while (base64.Length > 30000)
+            int total = (base64.Length + 29999) / 30000;
+
+            this.QueuePacket(WebOutbound.ScribbleHead(this, sender, total, height));
+
+            for (int i = 0; i < total; i++)
             {
-                packets.Add(base64.Substring(0, 30000));
-                base64 = base64.Substring(30000);
+                int off = i * 30000;
+                int len = Math.Min(30000, base64.Length - off);
+                this.QueuePacket(WebOutbound.ScribbleBlock(this, base64.Substring(off, len)));
             }
-
-            if (base64.Length > 0)
-                packets.Add(base64);
-
-            this.QueuePacket(WebOutbound.ScribbleHead(this, sender, packets.Count, height));
-
-            foreach (String str in packets)
-                this.QueuePacket(WebOutbound.ScribbleBlock(this, str));
         }
         public void PmScribble(String sender, String img, int h)
         {
@@ -218,20 +212,17 @@ namespace core.ib0t
                 return;
             String height = h.ToString();
             String base64 = img;
-            List<String> packets = new List<String>();
 
-            while (base64.Length > 30000)
+            int total = (base64.Length + 29999) / 30000;
+
+            this.QueuePacket(WebOutbound.PmScribbleHead(this, sender, total, height));
+
+            for (int i = 0; i < total; i++)
             {
-                packets.Add(base64.Substring(0, 30000));
-                base64 = base64.Substring(30000);
+                int off = i * 30000;
+                int len = Math.Min(30000, base64.Length - off);
+                this.QueuePacket(WebOutbound.PmScribbleBlock(this, sender, base64.Substring(off, len)));
             }
-
-            if (base64.Length > 0)
-                packets.Add(base64);
-
-            this.QueuePacket(WebOutbound.PmScribbleHead(this, sender, packets.Count, height));
-            foreach (String str in packets)
-                this.QueuePacket(WebOutbound.PmScribbleBlock(this,sender, str));
         }
 
         public void Scribble2(String sender, String img)
@@ -240,42 +231,33 @@ namespace core.ib0t
                 return;
 
             String base64 = img;
-            List<String> packets = new List<String>();
 
-            while (base64.Length > 1024)
+            int total = (base64.Length + 1023) / 1024;
+
+            this.QueuePacket(WebOutbound.ScribbleSourceHead(this, sender, total));
+
+            for (int i = 0; i < total; i++)
             {
-                packets.Add(base64.Substring(0, 1024));
-                base64 = base64.Substring(1024);
+                int off = i * 1024;
+                int len = Math.Min(1024, base64.Length - off);
+                this.QueuePacket(WebOutbound.ScribbleSourceBlock(this, base64.Substring(off, len)));
             }
-
-            if (base64.Length > 0)
-                packets.Add(base64);
-
-            this.QueuePacket(WebOutbound.ScribbleSourceHead(this, sender, packets.Count));
-
-            foreach (String str in packets)
-                this.QueuePacket(WebOutbound.ScribbleSourceBlock(this, str));
         }
         public void Audio(String sender, String base64)
         {
             if (!this.Extended || !this.ProtoConnected)
                 return;
 
-            List<String> packets = new List<String>();
+            int total = (base64.Length + 29999) / 30000;
 
-            while (base64.Length > 30000)
+            this.QueuePacket(WebOutbound.AudioHead(this, sender, total));
+
+            for (int i = 0; i < total; i++)
             {
-                packets.Add(base64.Substring(0, 30000));
-                base64 = base64.Substring(30000);
+                int off = i * 30000;
+                int len = Math.Min(30000, base64.Length - off);
+                this.QueuePacket(WebOutbound.AudioBlock(this, base64.Substring(off, len)));
             }
-
-            if (base64.Length > 0)
-                packets.Add(base64);
-
-            this.QueuePacket(WebOutbound.AudioHead(this, sender, packets.Count));
-
-            foreach (String str in packets)
-                this.QueuePacket(WebOutbound.AudioBlock(this, str));
         }
         public void PmAudio(String sender, String base64)
         {
@@ -285,21 +267,16 @@ namespace core.ib0t
             if (!(this.IsInbizierMobile || this.IsInbizierWeb))
                 return;
 
-            List<String> packets = new List<String>();
+            int total = (base64.Length + 29999) / 30000;
 
-            while (base64.Length > 30000)
+            this.QueuePacket(WebOutbound.PmAudioHead(this, sender, total));
+
+            for (int i = 0; i < total; i++)
             {
-                packets.Add(base64.Substring(0, 30000));
-                base64 = base64.Substring(30000);
+                int off = i * 30000;
+                int len = Math.Min(30000, base64.Length - off);
+                this.QueuePacket(WebOutbound.PmAudioBlock(this, sender, base64.Substring(off, len)));
             }
-
-            if (base64.Length > 0)
-                packets.Add(base64);
-
-            this.QueuePacket(WebOutbound.PmAudioHead(this, sender, packets.Count));
-
-            foreach (String str in packets)
-                this.QueuePacket(WebOutbound.PmAudioBlock(this,sender, str));
         }
         public void Nudge(String sender) { }
 
@@ -808,7 +785,7 @@ namespace core.ib0t
                 catch { break; }
             }
 
-            byte[] buffer = new byte[8192];
+            byte[] buffer = this.recv_buffer;
             int received = 0;
             SocketError e = SocketError.Success;
 
@@ -820,7 +797,7 @@ namespace core.ib0t
             else
             {
                 this.socket_health = 0;
-                this.data_in.AddRange(buffer.Take(received));
+                this.data_in.AddRange(new ArraySegment<byte>(buffer, 0, received));
                 Stats.DataReceived += (ulong)received;
 
                 // Guard against a client flooding the buffer without ever
@@ -978,7 +955,8 @@ namespace core.ib0t
                         return null;
                     }
 
-                    byte[] buffer = this.data_in.GetRange(1, (index - 1)).ToArray();
+                    byte[] buffer = new byte[index - 1];
+                    this.data_in.CopyTo(1, buffer, 0, index - 1);
                     this.data_in.RemoveRange(0, (index + 1));
                     return Encoding.UTF8.GetString(buffer);
                 }
@@ -1001,9 +979,7 @@ namespace core.ib0t
                     if (max_size < 8)
                         return null;
 
-                    buffer = this.data_in.GetRange(2, 2).ToArray();
-                    Array.Reverse(buffer);
-                    len = (int)BitConverter.ToUInt16(buffer, 0);
+                    len = this.data_in[2] | (this.data_in[3] << 8);
 
                     if (max_size < (8 + len))
                         return null;
@@ -1015,7 +991,8 @@ namespace core.ib0t
                     if (max_size < 14)
                         return null;
 
-                    buffer = this.data_in.GetRange(2, 8).ToArray();
+                    buffer = new byte[8];
+                    this.data_in.CopyTo(2, buffer, 0, 8);
                     Array.Reverse(buffer);
                     ulong len64 = BitConverter.ToUInt64(buffer, 0);
 
@@ -1044,8 +1021,10 @@ namespace core.ib0t
                 }
                 if (this.data_in.Count >= (len + 4))
                 {
-                    byte[] key = this.data_in.GetRange(0, 4).ToArray();
-                    byte[] text = this.data_in.GetRange(4, len).ToArray();
+                    byte[] key = new byte[4];
+                    this.data_in.CopyTo(0, key, 0, 4);
+                    byte[] text = new byte[len];
+                    this.data_in.CopyTo(4, text, 0, len);
                     this.data_in.RemoveRange(0, (len + 4));
 
                     for (int i = 0; i < text.Length; i++)

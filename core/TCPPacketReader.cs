@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -27,8 +27,7 @@ namespace core
 {
     class TCPPacketReader
     {
-
-        private static String[] bad_chars = new String[] // skiddy
+        private static readonly String[] bad_chars = new String[] // skiddy
             {
                 "\u00A0",
                 "\u00AD",
@@ -36,25 +35,27 @@ namespace core
                 "\r\n",
                 "\r",
                 "\n",
-                "",
-                "",
                 "\x00cc\x00b8",
                 "͋"
             };
 
+        // One pass instead of 10 Regex.Replace calls per string.
+        private static readonly Regex bad_chars_regex = new Regex(
+            String.Join("|", Array.ConvertAll(bad_chars, x => Regex.Escape(x))),
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         private int Position = 0;
-        private List<byte> Data = new List<byte>();
+        private byte[] Data;
 
         public TCPPacketReader(byte[] bytes)
         {
-            this.Data.Clear();
+            this.Data = bytes ?? new byte[0];
             this.Position = 0;
-            this.Data.AddRange(bytes);
         }
 
         public int Remaining
         {
-            get { return this.Data.Count - this.Position; }
+            get { return this.Data.Length - this.Position; }
         }
 
         public void SkipByte()
@@ -76,16 +77,21 @@ namespace core
 
         public static implicit operator byte[](TCPPacketReader p)
         {
-            byte[] tmp = new byte[p.Data.Count - p.Position];
-            Array.Copy(p.Data.ToArray(), p.Position, tmp, 0, tmp.Length);
-            p.Position += tmp.Length;
+            int len = p.Data.Length - p.Position;
+
+            if (len <= 0)
+                return new byte[0];
+
+            byte[] tmp = new byte[len];
+            Buffer.BlockCopy(p.Data, p.Position, tmp, 0, len);
+            p.Position += len;
             return tmp;
         }
 
         public static implicit operator Guid(TCPPacketReader p)
         {
             byte[] tmp = new byte[16];
-            Array.Copy(p.Data.ToArray(), p.Position, tmp, 0, tmp.Length);
+            Buffer.BlockCopy(p.Data, p.Position, tmp, 0, 16);
             p.Position += 16;
 
             using (MD5 md5 = MD5.Create())
@@ -96,21 +102,21 @@ namespace core
 
         public static implicit operator ushort(TCPPacketReader p)
         {
-            ushort tmp = BitConverter.ToUInt16(p.Data.ToArray(), p.Position);
+            ushort tmp = BitConverter.ToUInt16(p.Data, p.Position);
             p.Position += 2;
             return tmp;
         }
 
         public static implicit operator uint(TCPPacketReader p)
         {
-            uint tmp = BitConverter.ToUInt32(p.Data.ToArray(), p.Position);
+            uint tmp = BitConverter.ToUInt32(p.Data, p.Position);
             p.Position += 4;
             return tmp;
         }
 
         public static implicit operator ulong(TCPPacketReader p)
         {
-            ulong tmp = BitConverter.ToUInt64(p.Data.ToArray(), p.Position);
+            ulong tmp = BitConverter.ToUInt64(p.Data, p.Position);
             p.Position += 8;
             return tmp;
         }
@@ -118,7 +124,7 @@ namespace core
         public static implicit operator IPAddress(TCPPacketReader p)
         {
             byte[] tmp = new byte[4];
-            Array.Copy(p.Data.ToArray(), p.Position, tmp, 0, tmp.Length);
+            Buffer.BlockCopy(p.Data, p.Position, tmp, 0, 4);
             p.Position += 4;
             return new IPAddress(tmp);
         }
@@ -126,9 +132,17 @@ namespace core
         public byte[] ReadBytes(int count)
         {
             byte[] tmp = new byte[count];
-            Array.Copy(this.Data.ToArray(), this.Position, tmp, 0, tmp.Length);
-            this.Position += tmp.Length;
+            Buffer.BlockCopy(this.Data, this.Position, tmp, 0, count);
+            this.Position += count;
             return tmp;
+        }
+
+        private static String Sanitize(String str)
+        {
+            if (!String.IsNullOrEmpty(str))
+                str = bad_chars_regex.Replace(str, String.Empty);
+
+            return str.Trim();
         }
 
         public String ReadString(core.LinkHub.Leaf leaf)
@@ -139,14 +153,11 @@ namespace core
             data = Crypto.Decrypt(data, leaf.Key, leaf.IV);
             str = Encoding.UTF8.GetString(data);
 
-            if (this.Position < this.Data.Count)
+            if (this.Position < this.Data.Length)
                 if (this.Data[this.Position] == 0)
                     this.Position++;
 
-            foreach (String c in bad_chars)
-                str = Regex.Replace(str, Regex.Escape(c), "", RegexOptions.IgnoreCase);
-
-            return str.Trim();
+            return Sanitize(str);
         }
 
         public String ReadString(core.LinkLeaf.LinkClient client)
@@ -157,14 +168,11 @@ namespace core
             data = Crypto.Decrypt(data, client.Key, client.IV);
             str = Encoding.UTF8.GetString(data);
 
-            if (this.Position < this.Data.Count)
+            if (this.Position < this.Data.Length)
                 if (this.Data[this.Position] == 0)
                     this.Position++;
 
-            foreach (String c in bad_chars)
-                str = Regex.Replace(str, Regex.Escape(c), "", RegexOptions.IgnoreCase);
-
-            return str.Trim();
+            return Sanitize(str);
         }
 
         public String ReadString(IClient client)
@@ -178,43 +186,39 @@ namespace core
                 data = Crypto.Decrypt(data, client.Encryption.Key, client.Encryption.IV);
                 str = Encoding.UTF8.GetString(data);
 
-                if (this.Position < this.Data.Count)
+                if (this.Position < this.Data.Length)
                     if (this.Data[this.Position] == 0)
                         this.Position++;
             }
             else
             {
-                int split = this.Data.IndexOf(0, this.Position);
-                byte[] tmp = new byte[split > -1 ? (split - this.Position) : (this.Data.Count - this.Position)];
-                Array.Copy(this.Data.ToArray(), this.Position, tmp, 0, tmp.Length);
-                this.Position = split > -1 ? (split + 1) : this.Data.Count;
+                int split = Array.IndexOf(this.Data, (byte)0, this.Position);
+                int len = split > -1 ? (split - this.Position) : (this.Data.Length - this.Position);
+                byte[] tmp = new byte[len];
+                Buffer.BlockCopy(this.Data, this.Position, tmp, 0, len);
+                this.Position = split > -1 ? (split + 1) : this.Data.Length;
                 str = Encoding.UTF8.GetString(tmp);
-            }      
+            }
 
-            foreach (String c in bad_chars)
-                str = Regex.Replace(str, Regex.Escape(c), "", RegexOptions.IgnoreCase);
-
-            return str.Trim();
+            return Sanitize(str);
         }
 
         public String ReadString()
         {
             String str = String.Empty;
-            int split = this.Data.IndexOf(0, this.Position);
-            byte[] tmp = new byte[split > -1 ? (split - this.Position) : (this.Data.Count - this.Position)];
-            Array.Copy(this.Data.ToArray(), this.Position, tmp, 0, tmp.Length);
-            this.Position = split > -1 ? (split + 1) : this.Data.Count;
+            int split = Array.IndexOf(this.Data, (byte)0, this.Position);
+            int len = split > -1 ? (split - this.Position) : (this.Data.Length - this.Position);
+            byte[] tmp = new byte[len];
+            Buffer.BlockCopy(this.Data, this.Position, tmp, 0, len);
+            this.Position = split > -1 ? (split + 1) : this.Data.Length;
             str = Encoding.UTF8.GetString(tmp);
 
-            foreach (String c in bad_chars)
-                str = Regex.Replace(str, Regex.Escape(c), "", RegexOptions.IgnoreCase);
-
-            return str.Trim();
+            return Sanitize(str);
         }
 
         public byte[] ToArray()
         {
-            return this.Data.ToArray();
+            return this.Data;
         }
     }
 }

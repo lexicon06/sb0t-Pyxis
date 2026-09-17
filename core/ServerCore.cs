@@ -443,6 +443,8 @@ namespace core
 
             if (Linker != null)
                 Linker.KillSocket();
+
+            ChatLog.Close();
         }
 
         private void ServerThread()
@@ -584,6 +586,7 @@ namespace core
                     return;
 
                 Socket sock = this.tcp.AcceptSocket();
+                sock.NoDelay = true;
                 Stream networkStream = new NetworkStream(sock);
                 Stream sslStream = new SslStream(networkStream);
                 // NOTE: When using a reverse proxy, this IP will be the proxy's IP, not the real client IP.
