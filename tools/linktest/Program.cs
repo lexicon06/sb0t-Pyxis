@@ -1,7 +1,12 @@
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Reflection;
+using System.Threading;
 using core;
-using core.LinkLeaf;
 using core.LinkHub;
+using core.LinkLeaf;
 
 namespace linktest
 {
@@ -17,7 +22,26 @@ namespace linktest
                 failed++;
         }
 
-        static int Main()
+        static int Main(string[] args)
+        {
+            if (args.Length > 0)
+            {
+                switch (args[0])
+                {
+                    case "hub": return HubMain(args);
+                    case "leaf": return LeafMain(args);
+                    case "e2e": return E2eMain();
+                }
+            }
+
+            return UnitTests();
+        }
+
+        // ------------------------------------------------------------------
+        //  Unit tests (protocol round-trips)
+        // ------------------------------------------------------------------
+
+        private static int UnitTests()
         {
             CryptoRoundtrip();
             ReaderWriterRoundtrip();
@@ -101,7 +125,6 @@ namespace linktest
             return u;
         }
 
-        // Strips [2-byte ares len][MSG_LINK_PROTO][2-byte link len][link msg] and returns the payload reader + msg.
         private static TCPPacketReader Unwrap(byte[] ares, out LinkMsg msg)
         {
             msg = (LinkMsg)ares[5];
@@ -234,6 +257,234 @@ namespace linktest
             }
 
             Check(ok && Equal(Concat(parts), payload), "scribble chunked link roundtrip (120000, 3 chunks)");
+        }
+
+        // ------------------------------------------------------------------
+        //  End-to-end: two ServerCore processes linked, both send + read
+        // ------------------------------------------------------------------
+
+        private static String HexStr(byte[] b)
+        {
+            return BitConverter.ToString(b).Replace("-", "");
+        }
+
+        private static byte[] HexBytes(String s)
+        {
+            byte[] r = new byte[s.Length / 2];
+            for (int i = 0; i < r.Length; i++)
+                r[i] = Convert.ToByte(s.Substring(i * 2, 2), 16);
+            return r;
+        }
+
+        private static int E2eMain()
+        {
+            ushort hubPort = 55111;
+            ushort leafPort = 55112;
+            String hubName = "HUBTEST";
+            String leafName = "LEAFTEST";
+            byte[] hubGuid = Guid.NewGuid().ToByteArray();
+            byte[] leafGuid = Guid.NewGuid().ToByteArray();
+
+            String dll = Assembly.GetEntryAssembly().Location;
+
+            String hubDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "sb0t", "sb0t-linktest-hub");
+            String leafDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "sb0t", "sb0t-linktest-leaf");
+
+            TryDeleteDir(hubDir);
+            TryDeleteDir(leafDir);
+
+            String readyFile = Path.Combine(Path.GetTempPath(), "sb0t-linktest-hub-ready");
+            try { File.Delete(readyFile); } catch { }
+
+            Console.WriteLine("[e2e] launching hub on " + hubPort + " ...");
+            Process hub = StartChild(dll, "hub " + hubPort + " " + hubName + " " + HexStr(hubGuid) + " " + leafName + " " + HexStr(leafGuid));
+
+            bool ready = WaitFile(readyFile, 30000);
+            Console.WriteLine("[e2e] hub ready = " + ready);
+
+            Console.WriteLine("[e2e] launching leaf on " + leafPort + " ...");
+            Process leaf = StartChild(dll, "leaf " + leafPort + " " + leafName + " " + HexStr(leafGuid) + " 127.0.0.1 " + hubPort + " " + hubName);
+
+            hub.WaitForExit(60000);
+            leaf.WaitForExit(60000);
+
+            if (!hub.HasExited) { try { hub.Kill(); } catch { } }
+            if (!leaf.HasExited) { try { leaf.Kill(); } catch { } }
+
+            Thread.Sleep(1000);
+
+            String hubLog = ReadTodayLog(hubDir);
+            String leafLog = ReadTodayLog(leafDir);
+
+            Console.WriteLine();
+            Console.WriteLine("===== HUB chatlog =====");
+            Console.WriteLine(hubLog);
+            Console.WriteLine("===== LEAF chatlog =====");
+            Console.WriteLine(leafLog);
+            Console.WriteLine();
+
+            bool leafGotHub = leafLog.Contains("link-recv: hubuser> hola-desde-hub");
+            bool hubGotLeaf = hubLog.Contains("link-recv: leafuser> hola-desde-leaf");
+
+            Check(leafGotHub, "leaf lee lo que envio el hub (link-recv: hubuser> hola-desde-hub)");
+            Check(hubGotLeaf, "hub lee lo que envio el leaf (link-recv: leafuser> hola-desde-leaf)");
+
+            Console.WriteLine();
+            Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
+            return failed == 0 ? 0 : 1;
+        }
+
+        private static Process StartChild(String dll, String args)
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = "dotnet";
+            psi.Arguments = "\"" + dll + "\" " + args;
+            psi.UseShellExecute = false;
+            return Process.Start(psi);
+        }
+
+        private static bool WaitFile(String path, int timeoutMs)
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+
+            while (sw.ElapsedMilliseconds < timeoutMs)
+            {
+                if (File.Exists(path))
+                    return true;
+
+                Thread.Sleep(100);
+            }
+
+            return false;
+        }
+
+        private static void TryDeleteDir(String dir)
+        {
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { }
+        }
+
+        private static String ReadTodayLog(String identityDir)
+        {
+            try
+            {
+                DateTime d = DateTime.Now;
+                String path = Path.Combine(identityDir, "ChatLogs", d.Day + " " + d.Month + " " + d.Year + ".txt");
+                return File.Exists(path) ? File.ReadAllText(path) : "(sin chatlog)";
+            }
+            catch (Exception e)
+            {
+                return "(error leyendo chatlog: " + e.Message + ")";
+            }
+        }
+
+        private static void ConfigureIdentity(String identity, ushort port, String name, byte[] guid, int linkMode)
+        {
+            iconnect.SettingsStore.Identity = identity;
+            core.Settings.Set("port", port);
+            core.Settings.Set("name", name);
+            core.Settings.Set("guid", guid);
+            core.Settings.Set("link_mode", linkMode);
+            core.Settings.Set("logging", true);
+            core.Settings.Set("captcha", false);
+            core.Settings.Set("roomsearch", false);
+            core.Settings.Set("enabled", false, "web");
+            core.Settings.Set("link_reconnect", false);
+            core.Settings.Set("link_admin", false);
+        }
+
+        private static int HubMain(String[] a)
+        {
+            // hub <port> <name> <guidHex> <leafName> <leafGuidHex>
+            ushort port = ushort.Parse(a[1]);
+            String name = a[2];
+            byte[] guid = HexBytes(a[3]);
+            String leafName = a[4];
+            byte[] leafGuid = HexBytes(a[5]);
+
+            ConfigureIdentity("sb0t-linktest-hub", port, name, guid, 1);
+            ServerCore.LogUpdate += (s, e) => { };
+
+            TrustedLeavesManager.Init();
+            TrustedLeavesManager.AddItem(new TrustedLeafItem { Name = leafName, Guid = new Guid(leafGuid) });
+
+            ServerCore server = new ServerCore();
+
+            if (!server.Open())
+            {
+                Console.WriteLine("[hub] Open() failed");
+                return 2;
+            }
+
+            Console.WriteLine("[hub] listening on " + port + ", waiting for leaf " + leafName);
+
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "sb0t-linktest-hub-ready"), "1");
+
+            Stopwatch sw = Stopwatch.StartNew();
+
+            while (sw.ElapsedMilliseconds < 30000 && LeafPool.Leaves.Count < 2)
+                Thread.Sleep(100);
+
+            Console.WriteLine("[hub] leaves connected = " + LeafPool.Leaves.Count);
+
+            while (sw.ElapsedMilliseconds < 45000 && !(ServerCore.Linker != null && ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == core.LinkLeaf.LinkLogin.Ready))
+                Thread.Sleep(100);
+
+            Thread.Sleep(2500);
+
+            Console.WriteLine("[hub] sending public text as hubuser");
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "hola-desde-hub"));
+
+            Thread.Sleep(6000);
+            Console.WriteLine("[hub] done");
+            Environment.Exit(0);
+            return 0;
+        }
+
+        private static int LeafMain(String[] a)
+        {
+            // leaf <port> <name> <guidHex> <hubHost> <hubPort> <hubName>
+            ushort port = ushort.Parse(a[1]);
+            String name = a[2];
+            byte[] guid = HexBytes(a[3]);
+            String hubHost = a[4];
+            ushort hubPort = ushort.Parse(a[5]);
+            String hubName = a[6];
+
+            ConfigureIdentity("sb0t-linktest-leaf", port, name, guid, 2);
+            ServerCore.LogUpdate += (s, e) => { };
+
+            ServerCore server = new ServerCore();
+
+            if (!server.Open())
+            {
+                Console.WriteLine("[leaf] Open() failed");
+                return 2;
+            }
+
+            Stopwatch sw = Stopwatch.StartNew();
+
+            while (sw.ElapsedMilliseconds < 15000 && ServerCore.Linker == null)
+                Thread.Sleep(50);
+
+            Room room = new Room { IP = IPAddress.Parse(hubHost), Port = hubPort, Name = hubName };
+            String hashlink = Hashlink.EncodeHashlink(room);
+            Console.WriteLine("[leaf] connecting to hub '" + hubName + "' at " + hubHost + ":" + hubPort);
+            ServerCore.Linker.Connect(hashlink);
+
+            while (sw.ElapsedMilliseconds < 45000 && !(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == core.LinkLeaf.LinkLogin.Ready))
+                Thread.Sleep(100);
+
+            Console.WriteLine("[leaf] link phase = " + ServerCore.Linker.LoginPhase);
+
+            Thread.Sleep(2500);
+
+            Console.WriteLine("[leaf] sending public text as leafuser");
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "hola-desde-leaf"));
+
+            Thread.Sleep(6000);
+            Console.WriteLine("[leaf] done");
+            Environment.Exit(0);
+            return 0;
         }
     }
 }
