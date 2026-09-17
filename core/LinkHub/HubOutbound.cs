@@ -312,10 +312,11 @@ namespace core.LinkHub
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] HubPublicToLeaf(Leaf x, String sender, String text)
+        public static byte[] HubPublicToLeaf(Leaf x, String sender, String customName, String text)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, sender);
+            packet.WriteString(x, customName ?? String.Empty, false);
             packet.WriteString(x, text, false);
             byte[] buf = packet.ToLinkPacket(LinkMsg.MSG_LINK_HUB_PUBLIC_TO_LEAF);
             packet = new TCPPacketWriter();

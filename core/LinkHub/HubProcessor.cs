@@ -336,7 +336,7 @@ namespace core.LinkHub
             {
                 String sender = packet.ReadString(leaf);
                 String text = packet.ReadString(leaf);
-                l.SendPacket(HubOutbound.HubPublicToLeaf(l, sender, text));
+                l.SendPacket(HubOutbound.HubPublicToLeaf(l, sender, String.Empty, text));
             }
         }
 
@@ -728,9 +728,10 @@ namespace core.LinkHub
             }
 
             String name = packet.ReadString(leaf);
+            String customName = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
 
-            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, text)),
+            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 

@@ -325,9 +325,13 @@ namespace linktest
 
             bool leafGotHub = leafLog.Contains("link-recv: hubuser> hola-desde-hub");
             bool hubGotLeaf = hubLog.Contains("link-recv: leafuser> hola-desde-leaf");
+            bool leafGotHubCustom = leafLog.Contains("link-recv: @HUB@msg-custom-hub");
+            bool hubGotLeafCustom = hubLog.Contains("link-recv: @LEAF@msg-custom-leaf");
 
-            Check(leafGotHub, "leaf lee lo que envio el hub (link-recv: hubuser> hola-desde-hub)");
-            Check(hubGotLeaf, "hub lee lo que envio el leaf (link-recv: leafuser> hola-desde-leaf)");
+            Check(leafGotHub, "leaf lee hub SIN customname (link-recv: hubuser> hola-desde-hub)");
+            Check(hubGotLeaf, "hub lee leaf SIN customname (link-recv: leafuser> hola-desde-leaf)");
+            Check(leafGotHubCustom, "leaf lee hub CON customname (link-recv: @HUB@msg-custom-hub)");
+            Check(hubGotLeafCustom, "hub lee leaf CON customname (link-recv: @LEAF@msg-custom-leaf)");
 
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
@@ -431,8 +435,9 @@ namespace linktest
 
             Thread.Sleep(2500);
 
-            Console.WriteLine("[hub] sending public text as hubuser");
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "hola-desde-hub"));
+            Console.WriteLine("[hub] sending public text as hubuser (sin custom) y hubuser2 (con custom)");
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub"));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser2", "@HUB@", "msg-custom-hub"));
 
             Thread.Sleep(6000);
             Console.WriteLine("[hub] done");
@@ -478,8 +483,9 @@ namespace linktest
 
             Thread.Sleep(2500);
 
-            Console.WriteLine("[leaf] sending public text as leafuser");
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "hola-desde-leaf"));
+            Console.WriteLine("[leaf] sending public text as leafuser (sin custom) y leafuser2 (con custom)");
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "", "hola-desde-leaf"));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser2", "@LEAF@", "msg-custom-leaf"));
 
             Thread.Sleep(6000);
             Console.WriteLine("[leaf] done");

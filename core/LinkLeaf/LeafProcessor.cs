@@ -392,15 +392,28 @@ namespace core.LinkLeaf
         private static void HubPublicToLeaf(LinkClient link, TCPPacketReader packet)
         {
             String sender = packet.ReadString(link);
+            String customName = packet.ReadString(link);
             String text = packet.ReadString(link);
 
-            ChatLog.WriteLine("link-recv: " + sender + "> " + text);
+            bool hasCustom = !String.IsNullOrEmpty(customName);
 
-            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Public(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
 
-            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            UserPool.AUsers.ForEachWhere(x =>
+            {
+                if (!hasCustom || x.BlockCustomNames)
+                    x.SendPacket(TCPOutbound.Public(x, sender, text));
+                else
+                    x.SendPacket(TCPOutbound.NoSuch(x, customName + text));
+            }, x => x.LoggedIn && !x.Quarantined);
+
+            UserPool.WUsers.ForEachWhere(x =>
+            {
+                if (!hasCustom)
+                    x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text));
+                else
+                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
+            }, x => x.LoggedIn && !x.Quarantined);
         }
 
         private static void HubEmoteToLeaf(LinkClient link, TCPPacketReader packet)

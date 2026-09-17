@@ -396,10 +396,11 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafPublicText(LinkClient x, String name, String text)
+        public static byte[] LeafPublicText(LinkClient x, String name, String customName, String text)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
+            packet.WriteString(x, customName ?? String.Empty, false);
             packet.WriteString(x, text, false);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PUBLIC_TEXT);
             packet = new TCPPacketWriter();
