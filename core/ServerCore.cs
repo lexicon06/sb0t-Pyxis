@@ -86,6 +86,8 @@ namespace core
         /// Writes the connected users to a shared JSON file so other processes
         /// (e.g. the web panel) can show the same live user list as the GUI.
         /// </summary>
+        private static int _snapshot_busy = 0;
+
         private static void WriteUsersSnapshot()
         {
             try
@@ -112,7 +114,18 @@ namespace core
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(list);
                 string file = Path.Combine(DataPaths.Root, "users.json");
-                WriteSharedFile(file, json);
+
+                // The file write (with retries/sleeps) runs off the server loop so
+                // it never stalls chat/network processing.
+                if (System.Threading.Interlocked.CompareExchange(ref _snapshot_busy, 1, 0) != 0)
+                    return;
+
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try { WriteSharedFile(file, json); }
+                    catch { }
+                    finally { System.Threading.Interlocked.Exchange(ref _snapshot_busy, 0); }
+                });
             }
             catch { }
         }

@@ -858,17 +858,7 @@ namespace core
             if (asn != 0)
                 return asn;
 
-            try
-            {
-                string reverseIp = new IPAddress(OriginalIP.GetAddressBytes().Reverse().ToArray()).ToString();
-                Response response = dnsResolver.Query($"{reverseIp}.origin.asn.cymru.com", QType.TXT);
-
-                asn = uint.Parse(response.RecordsTXT.FirstOrDefault()?.TXT.FirstOrDefault().Split('|').FirstOrDefault());
-            }
-            catch
-            {
-                return 0;
-            }
+            asn = AsnLookup.Get(OriginalIP);
 
             return asn;
         }
