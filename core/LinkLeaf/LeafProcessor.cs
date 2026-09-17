@@ -802,6 +802,7 @@ namespace core.LinkLeaf
                 {
                     case "print":
                         text = packet.ReadString(link);
+                        ServerLog.Channel("link", "recv print -> " + _name + " (" + text.Length + " chars)");
                         client.IUser.Print(text);
                         break;
 

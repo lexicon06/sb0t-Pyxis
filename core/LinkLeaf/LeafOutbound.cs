@@ -63,20 +63,49 @@ namespace core.LinkLeaf
         // as MSG_CHANNEL_SERVER_NOSUCH on the other side, so it always renders.
         public static void RelayPublicText(String sender, String customName, String text)
         {
-            if (!(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready))
-                return;
-
             String line = String.IsNullOrEmpty(customName)
                 ? "\u0003" + "01" + sender + "> " + "\u0003" + "12" + text
                 : customName + text;
 
             int sent = 0;
+            bool is_hub = false;
 
-            foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                leaf.Users.ForEach(x => { x.Print(line); sent++; });
+            // Hub mode: deliver directly to every connected leaf's users, skipping the
+            // local/self leaf so it never echoes inside the same server.
+            foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+            {
+                if (leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                    continue;
 
-            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " linked users (" +
-                ServerCore.Linker.Leaves.Count + " leaves)");
+                if (leaf.Name == Settings.Name)
+                    continue;
+
+                is_hub = true;
+
+                leaf.Users.ForEach(x =>
+                {
+                    if (x.Name != sender)
+                    {
+                        leaf.SendPacket(LinkHub.HubOutbound.HubIUser(leaf, x.Name, "print", new String[] { line }));
+                        sent++;
+                    }
+                });
+            }
+
+            // Leaf mode: deliver to the users we know through our link.
+            if (!is_hub)
+                if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                    foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                        leaf.Users.ForEach(x =>
+                        {
+                            if (x.Name != sender)
+                            {
+                                x.Print(line);
+                                sent++;
+                            }
+                        });
+
+            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users (hub=" + is_hub + ")");
         }
 
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)
