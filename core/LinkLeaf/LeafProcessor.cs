@@ -395,6 +395,14 @@ namespace core.LinkLeaf
             }
         }
 
+        private static String LinkedLine(String sender, String customName, String text)
+        {
+            if (!String.IsNullOrEmpty(customName))
+                return customName + text;
+
+            return "\u0003" + "01" + sender + "> " + "\u0003" + "12" + text;
+        }
+
         private static void HubPublicToLeaf(LinkClient link, TCPPacketReader packet)
         {
             String sender = packet.ReadString(link);
@@ -407,18 +415,18 @@ namespace core.LinkLeaf
 
             UserPool.AUsers.ForEachWhere(x =>
             {
-                if (!hasCustom || x.BlockCustomNames)
-                    x.SendPacket(TCPOutbound.Public(x, sender, text));
-                else
+                if (hasCustom && !x.BlockCustomNames)
                     x.SendPacket(TCPOutbound.NoSuch(x, customName + text));
+                else
+                    x.SendPacket(TCPOutbound.NoSuch(x, LinkedLine(sender, null, text)));
             }, x => x.LoggedIn && !x.Quarantined);
 
             UserPool.WUsers.ForEachWhere(x =>
             {
-                if (!hasCustom)
-                    x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text));
-                else
+                if (hasCustom)
                     x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
+                else
+                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, LinkedLine(sender, null, text)));
             }, x => x.LoggedIn && !x.Quarantined);
         }
 
