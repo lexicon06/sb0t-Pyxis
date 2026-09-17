@@ -102,6 +102,31 @@ namespace core.LinkLeaf
             }
         }
 
+        public void Audio(String sender, String base64)
+        {
+            if (String.IsNullOrEmpty(base64))
+                return;
+
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+            {
+                List<String> chunks = new List<String>();
+                String rest = base64;
+
+                while (rest.Length > 16000)
+                {
+                    chunks.Add(rest.Substring(0, 16000));
+                    rest = rest.Substring(16000);
+                }
+
+                if (rest.Length > 0)
+                    chunks.Add(rest);
+
+                for (int i = 0; i < chunks.Count; i++)
+                    ServerCore.Linker.SendPacket(LeafOutbound.LeafAudio(ServerCore.Linker, this, sender,
+                        (ushort)chunks.Count, (ushort)i, chunks[i]));
+            }
+        }
+
         public void Nudge(String sender)
         {
             if (this.CustomClient)

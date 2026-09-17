@@ -169,6 +169,10 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_SCRIBBLE_LEAF:
                     HubScribbleLeaf(link, packet);
                     break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO:
+                    HubAudio(link, packet);
+                    break;
             }
         }
 
@@ -206,6 +210,68 @@ namespace core.LinkLeaf
 
             UserPool.WUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                 x => x.LoggedIn && !x.Quarantined && x.Extended);
+        }
+
+        private class AudioChunks
+        {
+            public ushort Total;
+            public String[] Parts;
+            public int Received;
+        }
+
+        private static Dictionary<String, AudioChunks> audio_chunks = new Dictionary<String, AudioChunks>();
+
+        private static void HubAudio(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                String target = packet.ReadString(link);
+                String sender = packet.ReadString(link);
+                ushort total = packet;
+                ushort index = packet;
+                String chunk = packet.ReadString(link);
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = target + "\u0000" + sender;
+                AudioChunks buf;
+
+                if (!audio_chunks.TryGetValue(key, out buf) || buf.Total != total)
+                {
+                    buf = new AudioChunks { Total = total, Parts = new String[total], Received = 0 };
+                    audio_chunks[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                audio_chunks.Remove(key);
+
+                StringBuilder sb = new StringBuilder();
+
+                foreach (String part in buf.Parts)
+                    sb.Append(part);
+
+                IClient client = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (client == null)
+                    client = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (client != null)
+                    client.IUser.Audio(sender, sb.ToString());
+            }
+            catch (Exception e)
+            {
+                // Audio is best-effort: a bad audio packet must never drop the link.
+                ServerLog.ChannelError("link", "audio relay failed (ignored)", e);
+            }
         }
 
         private static void HubNudge(LinkClient link, TCPPacketReader packet)
@@ -461,64 +527,82 @@ namespace core.LinkLeaf
             }
         }
 
+        private static LinkUser ResolveLinkedUser(LinkClient link, Leaf leaf, uint ident, String name)
+        {
+            LinkUser user = null;
+
+            if (leaf != null)
+                user = leaf.Users.Find(x => x.Name == name);
+
+            if (user == null)
+                foreach (Leaf l in link.Leaves)
+                {
+                    user = l.Users.Find(x => x.Name == name);
+
+                    if (user != null)
+                        break;
+                }
+
+            if (user == null)
+            {
+                user = new LinkUser(ident);
+                user.SetName(name);
+            }
+
+            return user;
+        }
+
         private static void HubPublicText(LinkClient link, TCPPacketReader packet)
         {
             uint ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == ident);
+            String name = packet.ReadString(link);
+            String text = packet.ReadString(link);
+            LinkUser user = ResolveLinkedUser(link, leaf, ident, name);
 
-            if (leaf != null)
+            Events.TextReceived(user, text);
+            FloodControl.LinkPost();
+            text = Events.TextSending(user, text);
+
+            if (!String.IsNullOrEmpty(text))
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
+                byte[] js_style = null;
 
-                if (user != null)
+                UserPool.AUsers.ForEachWhere(x =>
                 {
-                    String text = packet.ReadString(link);
-                    Events.TextReceived(user, text);
-                    FloodControl.LinkPost();
-                    text = Events.TextSending(user, text);
-
-                    if (!String.IsNullOrEmpty(text))
+                    if (x.SupportsHTML)
                     {
-                        byte[] js_style = null;
-
-                        UserPool.AUsers.ForEachWhere(x =>
+                        if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
                         {
                             if (x.SupportsHTML)
-                            {
-                                if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
-                                {
-                                    if (x.SupportsHTML)
-                                        if (js_style != null)
-                                            x.SendPacket(js_style);
+                                if (js_style != null)
+                                    x.SendPacket(js_style);
 
-                                    x.SendPacket(TCPOutbound.Public(x, user.Name, text));
-                                }
-                                else
-                                {
-                                    if (x.SupportsHTML)
-                                        if (js_style != null)
-                                            x.SendPacket(js_style);
+                            x.SendPacket(TCPOutbound.Public(x, user.Name, text));
+                        }
+                        else
+                        {
+                            if (x.SupportsHTML)
+                                if (js_style != null)
+                                    x.SendPacket(js_style);
 
-                                    x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
-                                }
-                            }
-                            else
-                            {
-                                if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
-                                    x.SendPacket(TCPOutbound.Public(x, user.Name, text));
-                                else
-                                    x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
-                            }
-                        }, x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(user.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, user.Name, text) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
-                            x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        Events.TextSent(user, text);
+                            x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
+                        }
                     }
-                }
+                    else
+                    {
+                        if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
+                            x.SendPacket(TCPOutbound.Public(x, user.Name, text));
+                        else
+                            x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
+                    }
+                }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(user.CustomName) ?
+                    ib0t.WebOutbound.PublicTo(x, user.Name, text) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
+                    x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+
+                Events.TextSent(user, text);
             }
         }
 
@@ -526,38 +610,31 @@ namespace core.LinkLeaf
         {
             uint ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == ident);
+            String name = packet.ReadString(link);
+            String text = packet.ReadString(link);
+            LinkUser user = ResolveLinkedUser(link, leaf, ident, name);
 
-            if (leaf != null)
+            Events.EmoteReceived(user, text);
+            FloodControl.LinkPost();
+            text = Events.EmoteSending(user, text);
+
+            if (!String.IsNullOrEmpty(text))
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
+                byte[] js_style = null;
 
-                if (user != null)
+                UserPool.AUsers.ForEachWhere(x =>
                 {
-                    String text = packet.ReadString(link);
-                    Events.EmoteReceived(user, text);
-                    FloodControl.LinkPost();
-                    text = Events.EmoteSending(user, text);
+                    if (x.SupportsHTML)
+                        if (js_style != null)
+                            x.SendPacket(js_style);
 
-                    if (!String.IsNullOrEmpty(text))
-                    {
-                        byte[] js_style = null;
+                    x.SendPacket(TCPOutbound.Emote(x, user.Name, text));
+                }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
-                        UserPool.AUsers.ForEachWhere(x =>
-                        {
-                            if (x.SupportsHTML)
-                                if (js_style != null)
-                                    x.SendPacket(js_style);
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text)),
+                    x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
-                            x.SendPacket(TCPOutbound.Emote(x, user.Name, text));
-                        }, x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text)),
-                            x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        Events.EmoteSent(user, text);
-                    }
-                }
+                Events.EmoteSent(user, text);
             }
         }
 
@@ -602,14 +679,9 @@ namespace core.LinkLeaf
             String name = packet.ReadString(link);
             String cname = packet.ReadString(link);
             Leaf leaf = link.Leaves.Find(x => x.Ident == ident);
+            LinkUser user = ResolveLinkedUser(link, leaf, ident, name);
 
-            if (leaf != null)
-            {
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
-
-                if (user != null)
-                    user.SetCustomName(cname);
-            }
+            user.SetCustomName(cname);
         }
 
         private static void HubIUser(LinkClient link, TCPPacketReader packet)
@@ -769,31 +841,74 @@ namespace core.LinkLeaf
             }
         }
 
+        private class AvatarChunkBuffer
+        {
+            public ushort Total;
+            public byte[][] Parts;
+            public int Received;
+        }
+
+        private static Dictionary<String, AvatarChunkBuffer> avatar_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
         private static void HubAvatar(LinkClient link, TCPPacketReader packet)
         {
             uint leaf_ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == leaf_ident);
+            String name = packet.ReadString(link);
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
 
-            if (leaf != null)
+            if (total == 0 || index >= total)
+                return;
+
+            String key = leaf_ident + "|" + name;
+            AvatarChunkBuffer buf;
+
+            if (!avatar_buffers.TryGetValue(key, out buf) || buf.Total != total)
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
-                byte[] buffer = packet;
+                buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                avatar_buffers[key] = buf;
+            }
 
-                if (user != null)
-                    if (Events.AvatarReceived(user))
-                    {
-                        user.SetAvatar(buffer);
+            if (buf.Parts[index] == null)
+            {
+                buf.Parts[index] = chunk;
+                buf.Received++;
+            }
 
-                        if (user.Link.Visible)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, user)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
+            if (buf.Received < buf.Total)
+                return;
 
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, user.Name, user.Avatar)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
-                        }
-                    }
+            avatar_buffers.Remove(key);
+
+            int size = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                    size += part.Length;
+
+            byte[] avatar = new byte[size];
+            int offset = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                {
+                    Buffer.BlockCopy(part, 0, avatar, offset, part.Length);
+                    offset += part.Length;
+                }
+
+            LinkUser user = ResolveLinkedUser(link, leaf, leaf_ident, name);
+
+            if (Events.AvatarReceived(user))
+            {
+                user.SetAvatar(avatar);
+
+                UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, user)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, user.Name, user.Avatar)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
             }
         }
 
@@ -801,27 +916,19 @@ namespace core.LinkLeaf
         {
             uint leaf_ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == leaf_ident);
+            String name = packet.ReadString(link);
+            LinkUser user = ResolveLinkedUser(link, leaf, leaf_ident, name);
+            String text = packet.ReadString(link);
 
-            if (leaf != null)
+            if (Events.PersonalMessageReceived(user, text))
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
-                String text = packet.ReadString(link);
+                user.SetPersonalMessage(text);
 
-                if (user != null)
-                    if (Events.PersonalMessageReceived(user, text))
-                    {
-                        user.SetPersonalMessage(text);
+                UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.PersonalMessage(x, user)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
 
-                        if (user.Link.Visible)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.PersonalMessage(x, user)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
-
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.PersMsgTo(x, user.Name, user.PersonalMessage)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
-                        }
-                    }
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.PersMsgTo(x, user.Name, user.PersonalMessage)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
             }
         }
 
@@ -1283,10 +1390,11 @@ namespace core.LinkLeaf
             link.Key = list.GetRange(16, 32).ToArray();
             link.Ident = packet;
             link.LoginPhase = LinkLogin.Ready;
+            ServerLog.Channel("link", "connected to hub '" + link.HubName + "' at " + link.ExternalIP + ":" + link.Port + " (ident " + link.Ident + ")");
 
             UserPool.AUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafUserlistItem(link, x)),
                 x => x.LoggedIn && !x.Quarantined);
-            UserPool.AUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafAvatar(link, x)),
+            UserPool.AUsers.ForEachWhere(x => LeafOutbound.SendAvatar(link, x),
                 x => x.LoggedIn && !x.Quarantined && x.Avatar.Length > 0);
             UserPool.AUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafPersonalMessage(link, x)),
                 x => x.LoggedIn && !x.Quarantined && x.PersonalMessage.Length > 0);
@@ -1294,7 +1402,7 @@ namespace core.LinkLeaf
                 x => x.LoggedIn && !x.Quarantined && !String.IsNullOrEmpty(x.CustomName));
             UserPool.WUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafUserlistItem(link, x)),
                 x => x.LoggedIn && !x.Quarantined);
-            UserPool.WUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafAvatar(link, x)),
+            UserPool.WUsers.ForEachWhere(x => LeafOutbound.SendAvatar(link, x),
                 x => x.LoggedIn && !x.Quarantined);
             UserPool.WUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafPersonalMessage(link, x)),
                 x => x.LoggedIn && !x.Quarantined);

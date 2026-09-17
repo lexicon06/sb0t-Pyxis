@@ -164,6 +164,10 @@ namespace core.LinkHub
                 case LinkMsg.MSG_LINK_LEAF_SCRIBBLE_LEAF:
                     LeafScribbleLeaf(leaf, packet);
                     break;
+
+                case LinkMsg.MSG_LINK_LEAF_AUDIO:
+                    LeafAudio(leaf, packet);
+                    break;
             }
         }
 
@@ -207,6 +211,37 @@ namespace core.LinkHub
                 uint height = packet;
                 byte[] img = packet;
                 l.SendPacket(HubOutbound.HubScribbleLeaf(l, sender, height, img));
+            }
+        }
+
+        private static void LeafAudio(Leaf leaf, TCPPacketReader packet)
+        {
+            if (leaf.LoginPhase != LinkLogin.Ready)
+            {
+                leaf.SendPacket(HubOutbound.LinkError(LinkError.BadProtocol));
+                leaf.Disconnect();
+                return;
+            }
+
+            try
+            {
+                uint target_leaf = packet;
+                Leaf l = LeafPool.Leaves.Find(x => x.Ident == target_leaf && x.LoginPhase == LinkLogin.Ready);
+
+                if (l != null)
+                {
+                    String target = packet.ReadString(leaf);
+                    String sender = packet.ReadString(leaf);
+                    ushort total = packet;
+                    ushort index = packet;
+                    String chunk = packet.ReadString(leaf);
+                    l.SendPacket(HubOutbound.HubAudio(l, target, sender, total, index, chunk));
+                }
+            }
+            catch (Exception e)
+            {
+                // Audio is best-effort: a bad audio packet must never drop the link.
+                ServerLog.ChannelError("link", "audio relay failed on hub (ignored)", e);
             }
         }
 
@@ -624,7 +659,7 @@ namespace core.LinkHub
             String name = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
 
-            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteText(x, leaf.Ident, name, text)),
+            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteToLeaf(x, name, text)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 
@@ -640,7 +675,7 @@ namespace core.LinkHub
             String name = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
 
-            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubPublicText(x, leaf.Ident, name, text)),
+            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, text)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 
@@ -771,6 +806,15 @@ namespace core.LinkHub
             }
         }
 
+        private class AvatarChunkBuffer
+        {
+            public ushort Total;
+            public byte[][] Parts;
+            public int Received;
+        }
+
+        private static Dictionary<String, AvatarChunkBuffer> avatar_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
         private static void LeafAvatar(Leaf leaf, TCPPacketReader packet)
         {
             if (leaf.LoginPhase == LinkLogin.AwaitingLogin)
@@ -781,14 +825,57 @@ namespace core.LinkHub
             }
 
             String name = packet.ReadString(leaf);
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
+
+            if (total == 0 || index >= total)
+                return;
+
+            String key = leaf.Ident + "|" + name;
+            AvatarChunkBuffer buf;
+
+            if (!avatar_buffers.TryGetValue(key, out buf) || buf.Total != total)
+            {
+                buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                avatar_buffers[key] = buf;
+            }
+
+            if (buf.Parts[index] == null)
+            {
+                buf.Parts[index] = chunk;
+                buf.Received++;
+            }
+
+            if (buf.Received < buf.Total)
+                return;
+
+            avatar_buffers.Remove(key);
+
+            int size = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                    size += part.Length;
+
+            byte[] avatar = new byte[size];
+            int offset = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                {
+                    Buffer.BlockCopy(part, 0, avatar, offset, part.Length);
+                    offset += part.Length;
+                }
+
             LinkUser user = leaf.Users.Find(x => x.Name == name);
 
             if (user != null)
             {
-                user.Avatar = packet;
+                user.Avatar = avatar;
 
                 if (leaf.LoginPhase == LinkLogin.Ready)
-                    LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubAvatar(x, leaf.Ident, user)),
+                    LeafPool.Leaves.ForEachWhere(x => HubOutbound.SendAvatar(x, leaf.Ident, user),
                         x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
             }
         }
@@ -825,6 +912,7 @@ namespace core.LinkHub
             }
 
             leaf.LoginPhase = LinkLogin.Ready;
+            ServerLog.Channel("link", "leaf ready: " + leaf.Name + " id " + leaf.Ident + " users " + leaf.Users.Count + " total leaves " + LeafPool.Leaves.Count);
 
             LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubLeafConnected(x, leaf)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
@@ -839,7 +927,7 @@ namespace core.LinkHub
                         x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
 
                 if (u.Avatar.Length > 0)
-                    LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubAvatar(x, leaf.Ident, u)),
+                    LeafPool.Leaves.ForEachWhere(x => HubOutbound.SendAvatar(x, leaf.Ident, u),
                         x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
 
                 if (u.PersonalMessage.Length > 0)
@@ -859,7 +947,7 @@ namespace core.LinkHub
                         leaf.SendPacket(HubOutbound.HubCustomName(leaf, x.Ident, u));
 
                     if (u.Avatar.Length > 0)
-                        leaf.SendPacket(HubOutbound.HubAvatar(leaf, x.Ident, u));
+                        HubOutbound.SendAvatar(leaf, x.Ident, u);
 
                     if (u.PersonalMessage.Length > 0)
                         leaf.SendPacket(HubOutbound.HubPersonalMessage(leaf, x.Ident, u));
@@ -930,6 +1018,7 @@ namespace core.LinkHub
             {
                 leaf.SendPacket(HubOutbound.LinkError(LinkError.Untrusted));
                 leaf.Disconnect();
+                ServerLog.Channel("link", "rejected untrusted leaf from " + leaf.ExternalIP + ":" + leaf.Port);
                 return;
             }
 
@@ -937,6 +1026,7 @@ namespace core.LinkHub
             {
                 leaf.SendPacket(HubOutbound.LinkError(LinkError.Unavailable));
                 leaf.Disconnect();
+                ServerLog.Channel("link", "rejected leaf (this bot is not in hub mode) from " + leaf.ExternalIP);
                 return;
             }
 
@@ -947,6 +1037,7 @@ namespace core.LinkHub
             {
                 leaf.SendPacket(HubOutbound.LinkError(LinkError.ExpiredProtocol));
                 leaf.Disconnect();
+                ServerLog.Channel("link", "rejected leaf " + leaf.Name + " (expired protocol " + leaf.Protocol + ")");
                 return;
             }
 
@@ -954,6 +1045,7 @@ namespace core.LinkHub
             leaf.Key = Crypto.CreateKey;
             leaf.IV = Crypto.CreateIV;
             leaf.SendPacket(HubOutbound.HubAck(leaf));
+            ServerLog.Channel("link", "leaf authenticated: " + leaf.Name + " (" + leaf.ExternalIP + ":" + leaf.Port + ") id " + leaf.Ident);
         }
 
 

@@ -354,11 +354,13 @@ namespace core
 
         public static void Log(String message)
         {
+            ServerLog.Info(message);
             LogUpdate(null, new ServerLogEventArgs {Message = message});
         }
 
         public static void Log(String message, Exception e)
         {
+            ServerLog.Error(message, e);
             LogUpdate(null, new ServerLogEventArgs {Message = message, Error = e});
         }
 
@@ -375,7 +377,7 @@ namespace core
             }
             catch (Exception e)
             {
-                LogUpdate(this, new ServerLogEventArgs {Message = "TCP Listener", Error = e});
+                Log("TCP Listener", e);
                 return false;
             }
 
@@ -395,15 +397,11 @@ namespace core
             }
             catch (Exception e)
             {
-                LogUpdate(this, new ServerLogEventArgs {Message = "UDP Listener", Error = e});
+                Log("UDP Listener", e);
                 return false;
             }
 
-            LogUpdate(this,
-                new ServerLogEventArgs
-                {
-                    Message = "Server initialized on port " + ((IPEndPoint) this.tcp.LocalEndpoint).Port
-                });
+            Log("Server initialized on port " + ((IPEndPoint) this.tcp.LocalEndpoint).Port);
             this.thread = new Thread(new ThreadStart(this.ServerThread));
             this.thread.Start();
             this.Running = true;
@@ -805,6 +803,7 @@ namespace core
                         leaf.Disconnect();
                         Log("packet read fail from leaf " + leaf.Ident + " " +
                             (packet != null ? packet.Msg.ToString() : "?"), e);
+                        ServerLog.ChannelError("link", "packet read fail from leaf id " + leaf.Ident, e);
                         break;
                     }
 

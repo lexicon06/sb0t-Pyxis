@@ -209,6 +209,11 @@ namespace core
             // not this Ares socket handler. Nothing to do for raw Ares clients.
         }
 
+        public void Audio(String sender, String base64)
+        {
+            // Audio clips are an inbizier-only feature; raw Ares clients ignore them.
+        }
+
         public void Nudge(String sender)
         {
             byte[] buf = Encoding.UTF8.GetBytes("0" + sender);
@@ -607,7 +612,7 @@ namespace core
                             x => x.LoggedIn && x.Vroom == this.Vroom && !x.Quarantined && x.Extended);
 
                         if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, this));
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, this);
                     }
                 }
                 else
@@ -624,7 +629,7 @@ namespace core
 
 
                         if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, this));
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, this);
                     }
                 }
             }

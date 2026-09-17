@@ -84,6 +84,7 @@
     </Compile>
     <Compile Include="Room.cs" />
     <Compile Include="ServerCore.cs" />
+    <Compile Include="ServerLog.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="SharedFile.cs" />
     <Compile Include="SpellCheck.cs" />

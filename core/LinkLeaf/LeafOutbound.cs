@@ -129,15 +129,55 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafAvatar(LinkClient x, IClient client)
+        public static byte[] LeafAvatar(LinkClient x, String name, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
-            packet.WriteString(x, client.Name);
-            packet.WriteBytes(client.Avatar);
+            packet.WriteString(x, name);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AVATAR);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static void SendAvatar(LinkClient x, IClient client)
+        {
+            byte[] data = null;
+
+            ib0t.ib0tClient web = client as ib0t.ib0tClient;
+
+            if (web != null)
+                data = web.FullAvatar;
+
+            if (data == null || data.Length == 0)
+                data = client.Avatar;
+
+            if (data == null)
+                data = new byte[] { };
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            if (total > ushort.MaxValue)
+                total = ushort.MaxValue;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(LeafAvatar(x, client.Name, (ushort)total, (ushort)i, chunk));
+            }
         }
 
         public static byte[] LeafPersonalMessage(LinkClient x, IClient client)
@@ -270,6 +310,21 @@ namespace core.LinkLeaf
             packet.WriteUInt32((uint)height);
             packet.WriteBytes(img);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_SCRIBBLE_LEAF);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static byte[] LeafAudio(LinkClient x, LinkUser target, String sender, ushort total, ushort index, String chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt32(target.Link.Ident);
+            packet.WriteString(x, target.Name);
+            packet.WriteString(x, sender);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteString(x, chunk, false);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AUDIO);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);

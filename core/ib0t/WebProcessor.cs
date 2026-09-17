@@ -382,6 +382,11 @@ namespace core.ib0t
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && !(x.IsInbizierMobile || x.IsInbizierWeb));
                     UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.NoSuch(x, sender + " ha enviado un audio desde inbizio.")),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Audio(sender, text),
+                                x => x.Vroom == client.Vroom);
                 }
                 catch (Exception e)
                 {
@@ -619,7 +624,7 @@ namespace core.ib0t
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && (x.IsInbizierWeb || x.IsInbizierMobile));
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
+                                LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                         }
                     }
                     else
@@ -633,7 +638,7 @@ namespace core.ib0t
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
+                                LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                         }
                     }
                 }
@@ -648,7 +653,7 @@ namespace core.ib0t
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && (x.IsInbizierWeb || x.IsInbizierMobile));
 
                         if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                     }
                 }
             } catch(Exception e){

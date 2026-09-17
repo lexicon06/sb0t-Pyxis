@@ -167,6 +167,7 @@ namespace core.LinkLeaf
 
                         Events.LinkError(LinkError.BadProtocol);
                         ServerCore.Log("packet read fail from hub " + packet.Msg, e);
+                        ServerLog.ChannelError("link", "hub protocol error, dropping link (msg " + packet.Msg + ")", e);
 
                         if (was_linked)
                             this.ClearUserlist();
@@ -190,6 +191,7 @@ namespace core.LinkLeaf
                     else this.Busy = false;
                     
                     Events.LinkError(LinkError.RemoteDisconnect);
+                    ServerLog.Channel("link", "remote disconnected by hub (unlink_fire=" + unlink_fire + ")");
 
                     if (unlink_fire)
                     {
@@ -211,6 +213,7 @@ namespace core.LinkLeaf
                         else this.Busy = false;
 
                         Events.LinkError(LinkError.HandshakeTimeout);
+                        ServerLog.Channel("link", "handshake timeout waiting for HubAck");
                     }
                 }
                 else if (this.LoginPhase == LinkLogin.Ready)
@@ -233,6 +236,7 @@ namespace core.LinkLeaf
                         else this.Busy = false;
 
                         Events.LinkError(LinkError.PingTimeout);
+                        ServerLog.Channel("link", "PING TIMEOUT: no pong from hub for 240s, dropping link");
                         this.ClearUserlist();
                         Events.Unlinked();
                     }
@@ -294,6 +298,7 @@ namespace core.LinkLeaf
             this.HubName = Settings.Name;
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
+            ServerLog.Channel("link", "hub mode: connecting to self on port " + Settings.Port);
 
             try
             {
@@ -343,6 +348,7 @@ namespace core.LinkLeaf
             this.HubName = obj.Name;
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
+            ServerLog.Channel("link", "connecting to hub '" + obj.Name + "' at " + obj.IP + ":" + obj.Port);
 
             try
             {

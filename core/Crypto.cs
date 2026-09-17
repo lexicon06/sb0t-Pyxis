@@ -52,10 +52,15 @@ namespace core
             using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
             using (ICryptoTransform enc = aes.CreateDecryptor(key, iv))
             using (CryptoStream cs = new CryptoStream(ms, enc, CryptoStreamMode.Read))
+            using (MemoryStream output = new MemoryStream())
             {
-                result = new byte[data.Length];
-                int size = cs.Read(result, 0, result.Length);
-                result = result.Take(size).ToArray();
+                byte[] buffer = new byte[4096];
+                int size;
+
+                while ((size = cs.Read(buffer, 0, buffer.Length)) > 0)
+                    output.Write(buffer, 0, size);
+
+                result = output.ToArray();
             }
 
             return result;

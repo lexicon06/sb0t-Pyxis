@@ -111,27 +111,8 @@ namespace gui
 
         private void LogUpdate(object sender, ServerLogEventArgs e)
         {
-            String str = "";
-
-            if (!String.IsNullOrEmpty(e.Message))
-                str = e.Message;
-
-            if (e.Error != null)
-                str += "\r\n" + e.Error.Message + "\r\n" + e.Error.StackTrace;
-
-            try
-            {
-                String path = core.DataPaths.Root;
-
-                if (!Directory.Exists(path))
-                    Directory.CreateDirectory(path);
-
-                path += "\\serverlog.txt";
-
-                using (StreamWriter writer = File.Exists(path) ? File.AppendText(path) : File.CreateText(path))
-                    writer.WriteLine(DateTime.UtcNow + " " + str);
-            }
-            catch { }
+            // File logging is handled centrally by core.ServerLog so the GUI and
+            // the web panel write the same serverlog.txt / server_error.log.
         }
 
         private void RunMode(bool running)

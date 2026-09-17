@@ -992,6 +992,8 @@ namespace core
 
         public static void LinkError(core.LinkLeaf.LinkError e)
         {
+            ServerLog.Channel("link", "link error: " + e);
+
             if (DefaultCommands)
                 cmds.LinkError((ILinkError)e);
 
@@ -1006,6 +1008,8 @@ namespace core
 
         public static void Linked()
         {
+            ServerLog.Channel("link", "linked");
+
             if (DefaultCommands)
                 cmds.Linked();
 
@@ -1020,6 +1024,8 @@ namespace core
 
         public static void Unlinked()
         {
+            ServerLog.Channel("link", "unlinked");
+
             if (DefaultCommands)
                 cmds.Unlinked();
 
@@ -1034,6 +1040,8 @@ namespace core
 
         public static void LeafJoined(LinkLeaf.Leaf leaf)
         {
+            ServerLog.Channel("link", "leaf joined: " + (leaf != null && leaf.Name != null ? leaf.Name : "?"));
+
             if (DefaultCommands)
                 cmds.LeafJoined(leaf);
 
@@ -1048,6 +1056,8 @@ namespace core
 
         public static void LeafParted(LinkLeaf.Leaf leaf)
         {
+            ServerLog.Channel("link", "leaf parted: " + (leaf != null && leaf.Name != null ? leaf.Name : "?"));
+
             if (DefaultCommands)
                 cmds.LeafParted(leaf);
 

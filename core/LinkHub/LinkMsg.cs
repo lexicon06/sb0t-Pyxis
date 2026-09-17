@@ -79,6 +79,8 @@ namespace core.LinkHub
         MSG_LINK_HUB_SCRIBBLE_USER = 33,
         MSG_LINK_LEAF_SCRIBBLE_LEAF = 34,
         MSG_LINK_HUB_SCRIBBLE_LEAF = 34,
+        MSG_LINK_LEAF_AUDIO = 35,
+        MSG_LINK_HUB_AUDIO = 35,
 
         // admin
         MSG_LINK_LEAF_NICK_CHANGED = 40,

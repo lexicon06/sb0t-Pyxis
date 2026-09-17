@@ -728,8 +728,8 @@ namespace core
 
             // Use Original IP here
             // Fixes issue #30 https://github.com/AresChat/sb0t/issues/30
-            if ((UserPool.AUsers.FindAll(x => x.OriginalIP.Equals(client.OriginalIP)).Count +
-                 UserPool.WUsers.FindAll(x => x.OriginalIP.Equals(client.OriginalIP)).Count) > 5)
+            if ((UserPool.AUsers.FindAll(x => x.OriginalIP != null && x.OriginalIP.Equals(client.OriginalIP)).Count +
+                 UserPool.WUsers.FindAll(x => x.OriginalIP != null && x.OriginalIP.Equals(client.OriginalIP)).Count) > 5)
             {
                 Events.Rejected(client, RejectedMsg.TooManyClients);
                 throw new Exception("too many clients from this ip");
@@ -749,7 +749,7 @@ namespace core
                     x.OrgName == client.OrgName) && x.ID != client.ID && x.LoggedIn);
 
             if (hijack != null)
-                if (hijack.OriginalIP.Equals(client.OriginalIP))  // Possible issue with using masked ip lets use orginal instead
+                if (hijack.OriginalIP != null && hijack.OriginalIP.Equals(client.OriginalIP))  // Possible issue with using masked ip lets use orginal instead
                 {
                     if (!hijack.WebClient)
                         ((AresClient)hijack).Disconnect(true);

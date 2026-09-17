@@ -132,6 +132,9 @@ namespace core.LinkHub
 
         public void Disconnect()
         {
+            if (this.LoginPhase == LinkLogin.Ready)
+                ServerLog.Channel("link", "leaf disconnected: " + this.Name + " id " + this.Ident + " (" + this.ExternalIP + ")");
+
             while (this.data_out.Count > 0)
             {
                 try
@@ -177,6 +180,7 @@ namespace core.LinkHub
                         this.SendPacket(HubOutbound.LinkError(LinkError.HandshakeTimeout));
                         this.SocketConnected = false;
                         ServerCore.Log("handshake timeout from leaf " + this.ExternalIP + " id: " + this.Ident);
+                        ServerLog.Channel("link", "handshake timeout from leaf id " + this.Ident);
                     }
                     break;
 
@@ -186,6 +190,7 @@ namespace core.LinkHub
                         this.SendPacket(HubOutbound.LinkError(LinkError.HandshakeTimeout));
                         this.SocketConnected = false;
                         ServerCore.Log("handshake timeout from leaf " + this.ExternalIP + " id: " + this.Ident);
+                        ServerLog.Channel("link", "userlist timeout from leaf id " + this.Ident);
                     }
                     break;
 
@@ -195,6 +200,7 @@ namespace core.LinkHub
                         this.SendPacket(HubOutbound.LinkError(LinkError.PingTimeout));
                         this.SocketConnected = false;
                         ServerCore.Log("ping timeout from leaf " + this.ExternalIP + " id: " + this.Ident);
+                        ServerLog.Channel("link", "PING TIMEOUT from leaf id " + this.Ident + " (" + this.ExternalIP + ")");
                     }
                     break;
             }
