@@ -731,8 +731,16 @@ namespace core.LinkHub
             String customName = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
 
-            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text)),
-                x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
+            int forwarded = 0;
+
+            LeafPool.Leaves.ForEachWhere(x =>
+            {
+                x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text));
+                forwarded++;
+            }, x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
+
+            ServerLog.Channel("link", "text fwd: from leaf " + leaf.Ident + " [" + name + "] -> " + forwarded +
+                " leaves (total " + LeafPool.Leaves.Count + ")");
         }
 
         private static void LeafPrivateText(Leaf leaf, TCPPacketReader packet)

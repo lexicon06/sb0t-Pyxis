@@ -412,6 +412,7 @@ namespace core.LinkLeaf
             bool hasCustom = !String.IsNullOrEmpty(customName);
 
             ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
+            ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ")");
 
             UserPool.AUsers.ForEachWhere(x =>
             {
