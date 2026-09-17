@@ -234,7 +234,7 @@ namespace core.LinkHub
                     String sender = packet.ReadString(leaf);
                     ushort total = packet;
                     ushort index = packet;
-                    String chunk = packet.ReadString(leaf);
+                    byte[] chunk = packet;
                     l.SendPacket(HubOutbound.HubAudio(l, target, sender, total, index, chunk));
                 }
             }

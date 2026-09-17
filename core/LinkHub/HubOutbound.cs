@@ -397,14 +397,14 @@ namespace core.LinkHub
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] HubAudio(Leaf x, String target, String sender, ushort total, ushort index, String chunk)
+        public static byte[] HubAudio(Leaf x, String target, String sender, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, target);
             packet.WriteString(x, sender);
             packet.WriteUInt16(total);
             packet.WriteUInt16(index);
-            packet.WriteString(x, chunk, false);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkMsg.MSG_LINK_HUB_AUDIO);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);

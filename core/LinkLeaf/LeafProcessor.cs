@@ -215,7 +215,7 @@ namespace core.LinkLeaf
         private class AudioChunks
         {
             public ushort Total;
-            public String[] Parts;
+            public byte[][] Parts;
             public int Received;
         }
 
@@ -229,7 +229,7 @@ namespace core.LinkLeaf
                 String sender = packet.ReadString(link);
                 ushort total = packet;
                 ushort index = packet;
-                String chunk = packet.ReadString(link);
+                byte[] chunk = packet;
 
                 if (total == 0 || index >= total)
                     return;
@@ -239,7 +239,7 @@ namespace core.LinkLeaf
 
                 if (!audio_chunks.TryGetValue(key, out buf) || buf.Total != total)
                 {
-                    buf = new AudioChunks { Total = total, Parts = new String[total], Received = 0 };
+                    buf = new AudioChunks { Total = total, Parts = new byte[total][], Received = 0 };
                     audio_chunks[key] = buf;
                 }
 
@@ -254,10 +254,21 @@ namespace core.LinkLeaf
 
                 audio_chunks.Remove(key);
 
-                StringBuilder sb = new StringBuilder();
+                int size = 0;
 
-                foreach (String part in buf.Parts)
-                    sb.Append(part);
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                        size += part.Length;
+
+                byte[] audio = new byte[size];
+                int offset = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                    {
+                        Buffer.BlockCopy(part, 0, audio, offset, part.Length);
+                        offset += part.Length;
+                    }
 
                 IClient client = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
@@ -265,7 +276,7 @@ namespace core.LinkLeaf
                     client = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (client != null)
-                    client.IUser.Audio(sender, sb.ToString());
+                    client.IUser.Audio(sender, Convert.ToBase64String(audio));
             }
             catch (Exception e)
             {
