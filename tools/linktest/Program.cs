@@ -279,6 +279,13 @@ namespace linktest
             return r;
         }
 
+        private static byte[] AudioBytes(byte seed)
+        {
+            byte[] data = new byte[5000];
+            new Random(seed).NextBytes(data);
+            return data;
+        }
+
         private static int E2eMain()
         {
             ushort hubPort = 55111;
@@ -370,6 +377,9 @@ namespace linktest
             Check(hubWebLog.Contains("leafweb-msg"), "hub WEB recibe texto de leaf WEB (link)");
             Check(leafWebLog.Contains("hola-desde-hub"), "leaf WEB recibe texto del HUB no-web (link)");
             Check(hubWebLog.Contains("hola-desde-leaf"), "hub WEB recibe texto del LEAF no-web (link)");
+
+            Check(leafWebLog.Contains("AUDIO_HEAD:6,"), "leaf WEB recibe AUDIO de hub WEB (link)");
+            Check(hubWebLog.Contains("AUDIO_HEAD:7,"), "hub WEB recibe AUDIO de leaf WEB (link)");
 
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
@@ -488,6 +498,8 @@ namespace linktest
             core.Settings.Set("captcha", false);
             core.Settings.Set("roomsearch", false);
             core.Settings.Set("enabled", true, "web");
+            core.Settings.Set("audios", true, "settings");
+            core.Settings.Set("scribbles", true, "settings");
             core.Settings.Set("link_reconnect", false);
             core.Settings.Set("link_admin", false);
         }
@@ -551,7 +563,8 @@ namespace linktest
             if (hubWebOk)
             {
                 hubWeb.SendPublic("hubweb-msg " + new String('x', 260));
-                Console.WriteLine("[hub] web public sent");
+                hubWeb.SendAudio("hubweb", AudioBytes(0x41));
+                Console.WriteLine("[hub] web public + audio sent");
             }
 
             Thread.Sleep(9000);
@@ -618,7 +631,8 @@ namespace linktest
             if (leafWebOk)
             {
                 leafWeb.SendPublic("leafweb-msg " + new String('y', 260));
-                Console.WriteLine("[leaf] web public sent");
+                leafWeb.SendAudio("leafweb", AudioBytes(0x42));
+                Console.WriteLine("[leaf] web public + audio sent");
             }
 
             Thread.Sleep(9000);
@@ -721,6 +735,12 @@ namespace linktest
         public void SendPublic(String text)
         {
             this.SendText("PUBLIC:" + text.Length + ":" + text);
+        }
+
+        public void SendAudio(String sender, byte[] data)
+        {
+            String b64 = Convert.ToBase64String(data);
+            this.SendText("AUDIO:" + sender.Length + "," + b64.Length + ":" + sender + b64);
         }
 
         private void SendText(String payload)
