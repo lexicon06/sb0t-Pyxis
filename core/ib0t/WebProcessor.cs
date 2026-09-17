@@ -728,8 +728,8 @@ namespace core.ib0t
             if (!client.Captcha)
                 client.Captcha = CaptchaManager.HasCaptcha(client);
 
-            if ((UserPool.AUsers.FindAll(x => x.ExternalIP.Equals(client.ExternalIP)).Count +
-                 UserPool.WUsers.FindAll(x => x.ExternalIP.Equals(client.ExternalIP)).Count) > 3)
+            if ((UserPool.AUsers.FindAll(x => x.ExternalIP != null && x.ExternalIP.Equals(client.ExternalIP)).Count +
+                 UserPool.WUsers.FindAll(x => x.ExternalIP != null && x.ExternalIP.Equals(client.ExternalIP)).Count) > 3)
             {
                 Events.Rejected(client, RejectedMsg.TooManyClients);
                 throw new Exception("too many clients from this ip");
@@ -748,7 +748,7 @@ namespace core.ib0t
                     x.OrgName == client.OrgName) && x.ID != client.ID && x.LoggedIn);
 
             if (hijack != null)
-                if (hijack.ExternalIP.Equals(client.ExternalIP))
+                if (hijack.ExternalIP != null && hijack.ExternalIP.Equals(client.ExternalIP))
                 {
                     if (!hijack.WebClient)
                         ((AresClient)hijack).Disconnect(true);

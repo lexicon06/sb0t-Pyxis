@@ -1059,7 +1059,7 @@ namespace core.ib0t
                     if (max_size < 8)
                         return null;
 
-                    len = this.data_in[2] | (this.data_in[3] << 8);
+                    len = (this.data_in[2] << 8) | this.data_in[3];
 
                     if (max_size < (8 + len))
                         return null;
