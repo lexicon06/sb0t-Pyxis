@@ -333,6 +333,9 @@ namespace linktest
             Check(leafGotHubCustom, "leaf lee hub CON customname (link-recv: @HUB@msg-custom-hub)");
             Check(hubGotLeafCustom, "hub lee leaf CON customname (link-recv: @LEAF@msg-custom-leaf)");
 
+            Check(leafLog.Contains("link-recv: hubemoter emote-hub"), "leaf recibe EMOTE del hub");
+            Check(hubLog.Contains("link-recv: leafemoter emote-leaf"), "hub recibe EMOTE del leaf");
+
             String hubLink = ReadLinkLog(hubDir);
             String leafLink = ReadLinkLog(leafDir);
 
@@ -504,6 +507,7 @@ namespace linktest
             Console.WriteLine("[hub] sending public text as hubuser (sin custom) y hubuser2 (con custom)");
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub"));
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser2", "@HUB@", "msg-custom-hub"));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafEmoteText(ServerCore.Linker, "hubemoter", "emote-hub"));
 
             SendMedia(ServerCore.Linker, "hub");
 
@@ -554,6 +558,7 @@ namespace linktest
             Console.WriteLine("[leaf] sending public text as leafuser (sin custom) y leafuser2 (con custom)");
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "", "hola-desde-leaf"));
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser2", "@LEAF@", "msg-custom-leaf"));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafEmoteText(ServerCore.Linker, "leafemoter", "emote-leaf"));
 
             SendMedia(ServerCore.Linker, "leaf");
 
