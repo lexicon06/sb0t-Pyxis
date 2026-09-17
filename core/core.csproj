@@ -87,6 +87,7 @@
     <Compile Include="ServerLog.cs" />
     <Compile Include="AsnLookup.cs" />
     <Compile Include="ByteBuffer.cs" />
+    <Compile Include="FileLogQueue.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="SharedFile.cs" />
     <Compile Include="SpellCheck.cs" />

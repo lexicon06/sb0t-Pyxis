@@ -126,16 +126,7 @@ namespace core
         {
             try
             {
-                lock (_lock)
-                {
-                    String dir = Path.GetDirectoryName(path);
-
-                    if (!String.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                        Directory.CreateDirectory(dir);
-
-                    using (StreamWriter writer = File.Exists(path) ? File.AppendText(path) : File.CreateText(path))
-                        writer.WriteLine(DateTime.UtcNow + " " + text);
-                }
+                FileLogQueue.Enqueue(path, DateTime.UtcNow + " " + text);
             }
             catch { }
         }

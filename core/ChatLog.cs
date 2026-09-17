@@ -17,63 +17,26 @@
 */
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.IO;
 
 namespace core
 {
     class ChatLog
     {
-        private static readonly object _lock = new object();
-        private static StreamWriter writer;
-        private static String open_path;
-
         public static void WriteLine(String text)
         {
             if (!Settings.Get<bool>("logging"))
                 return;
 
-            try
-            {
-                lock (_lock)
-                {
-                    DateTime d = DateTime.Now;
+            DateTime d = DateTime.Now;
+            String path = Path.Combine(DataPaths.ChatLogs, d.Day + " " + d.Month + " " + d.Year + ".txt");
 
-                    String path = DataPaths.ChatLogs;
-
-                    if (!Directory.Exists(path))
-                        Directory.CreateDirectory(path);
-
-                    path += ("\\" + d.Day + " " + d.Month + " " + d.Year + ".txt");
-
-                    if (writer == null || open_path != path)
-                    {
-                        if (writer != null)
-                            try { writer.Dispose(); } catch { }
-
-                        writer = new StreamWriter(path, true);
-                        writer.AutoFlush = true;
-                        open_path = path;
-                    }
-
-                    writer.WriteLine(d.ToShortTimeString() + " " + text);
-                }
-            }
-            catch { }
+            FileLogQueue.Enqueue(path, d.ToShortTimeString() + " " + text);
         }
 
         public static void Close()
         {
-            lock (_lock)
-            {
-                if (writer != null)
-                    try { writer.Dispose(); } catch { }
-
-                writer = null;
-                open_path = null;
-            }
+            FileLogQueue.Shutdown();
         }
     }
 }
