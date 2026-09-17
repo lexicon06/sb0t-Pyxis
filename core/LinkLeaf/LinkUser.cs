@@ -88,7 +88,7 @@ namespace core.LinkLeaf
         {
             if (this.CustomClient)
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                    ServerCore.Linker.SendPacket(LeafOutbound.LeafScribbleUser(ServerCore.Linker, this, sender, height, img));
+                    LeafOutbound.SendScribbleUser(ServerCore.Linker, this, sender, height, img);
         }
 
         public void Scribble2(String sender, String img, int height)

@@ -372,29 +372,81 @@ namespace core.LinkHub
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] HubScribbleUser(Leaf x, String target, String sender, uint height, byte[] img)
+        public static byte[] HubScribbleUser(Leaf x, String target, String sender, uint height, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, target);
             packet.WriteString(x, sender);
             packet.WriteUInt32(height);
-            packet.WriteBytes(img);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkMsg.MSG_LINK_HUB_SCRIBBLE_USER);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] HubScribbleLeaf(Leaf x, String sender, uint height, byte[] img)
+        public static void SendScribbleUser(Leaf x, String target, String sender, uint height, byte[] img)
+        {
+            byte[] data = img ?? new byte[0];
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(HubScribbleUser(x, target, sender, height, (ushort)total, (ushort)i, chunk));
+            }
+        }
+
+        public static byte[] HubScribbleLeaf(Leaf x, String sender, uint height, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, sender);
             packet.WriteUInt32(height);
-            packet.WriteBytes(img);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkMsg.MSG_LINK_HUB_SCRIBBLE_LEAF);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static void SendScribbleLeaf(Leaf x, String sender, uint height, byte[] img)
+        {
+            byte[] data = img ?? new byte[0];
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(HubScribbleLeaf(x, sender, height, (ushort)total, (ushort)i, chunk));
+            }
         }
 
         public static byte[] HubAudio(Leaf x, String target, String sender, ushort total, ushort index, byte[] chunk)

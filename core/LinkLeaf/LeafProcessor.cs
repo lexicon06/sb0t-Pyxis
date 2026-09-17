@@ -176,12 +176,64 @@ namespace core.LinkLeaf
             }
         }
 
+        private static Dictionary<String, AvatarChunkBuffer> scribble_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
+        private static byte[] AccumulateBlob(Dictionary<String, AvatarChunkBuffer> buffers, String key, ushort total, ushort index, byte[] chunk)
+        {
+            if (total == 0 || index >= total)
+                return null;
+
+            AvatarChunkBuffer buf;
+
+            if (!buffers.TryGetValue(key, out buf) || buf.Total != total)
+            {
+                buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                buffers[key] = buf;
+            }
+
+            if (buf.Parts[index] == null)
+            {
+                buf.Parts[index] = chunk;
+                buf.Received++;
+            }
+
+            if (buf.Received < buf.Total)
+                return null;
+
+            buffers.Remove(key);
+
+            int size = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                    size += part.Length;
+
+            byte[] full = new byte[size];
+            int offset = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                {
+                    Buffer.BlockCopy(part, 0, full, offset, part.Length);
+                    offset += part.Length;
+                }
+
+            return full;
+        }
+
         private static void HubScribbleUser(LinkClient link, TCPPacketReader packet)
         {
             String target = packet.ReadString(link);
             String sender = packet.ReadString(link);
             int height = (int)((uint)packet);
-            byte[] img = packet;
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
+            byte[] img = AccumulateBlob(scribble_buffers, target + "|" + sender + "|" + height, total, index, chunk);
+
+            if (img == null)
+                return;
+
             AresClient ac = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
             if (ac != null)
@@ -203,7 +255,13 @@ namespace core.LinkLeaf
         {
             String sender = packet.ReadString(link);
             int height = (int)((uint)packet);
-            byte[] img = packet;
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
+            byte[] img = AccumulateBlob(scribble_buffers, "leaf|" + sender + "|" + height, total, index, chunk);
+
+            if (img == null)
+                return;
 
             UserPool.AUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                 x => x.LoggedIn && !x.Quarantined && x.CustomClient);
