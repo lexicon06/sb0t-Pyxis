@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using core;
 using core.LinkHub;
@@ -353,9 +356,33 @@ namespace linktest
             Check(hubLink.Contains("recv-avatar leafavatar"), "hub recibe AVATAR del leaf");
             Check(hubLink.Contains("recv-scribble leafscribble"), "hub recibe SCRIBBLE del leaf");
 
+            String hubWebLog = ReadFileIfExists(Path.Combine(Path.GetTempPath(), "sb0t-linktest-hubweb.log"));
+            String leafWebLog = ReadFileIfExists(Path.Combine(Path.GetTempPath(), "sb0t-linktest-leafweb.log"));
+
+            Console.WriteLine();
+            Console.WriteLine("===== HUB web client frames =====");
+            Console.WriteLine(hubWebLog);
+            Console.WriteLine("===== LEAF web client frames =====");
+            Console.WriteLine(leafWebLog);
+            Console.WriteLine();
+
+            Check(leafWebLog.Contains("hubweb-msg"), "leaf WEB recibe texto de hub WEB (link)");
+            Check(hubWebLog.Contains("leafweb-msg"), "hub WEB recibe texto de leaf WEB (link)");
+            Check(leafWebLog.Contains("hola-desde-hub"), "leaf WEB recibe texto del HUB no-web (link)");
+            Check(hubWebLog.Contains("hola-desde-leaf"), "hub WEB recibe texto del LEAF no-web (link)");
+
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
             return failed == 0 ? 0 : 1;
+        }
+
+        private static String ReadFileIfExists(String path)
+        {
+            try
+            {
+                return File.Exists(path) ? File.ReadAllText(path) : "(no existe: " + path + ")";
+            }
+            catch (Exception e) { return "(error: " + e.Message + ")"; }
         }
 
         private static Process StartChild(String dll, String args)
@@ -460,7 +487,7 @@ namespace linktest
             core.Settings.Set("logging", true);
             core.Settings.Set("captcha", false);
             core.Settings.Set("roomsearch", false);
-            core.Settings.Set("enabled", false, "web");
+            core.Settings.Set("enabled", true, "web");
             core.Settings.Set("link_reconnect", false);
             core.Settings.Set("link_admin", false);
         }
@@ -504,6 +531,14 @@ namespace linktest
 
             Thread.Sleep(2500);
 
+            String hubWebLog = Path.Combine(Path.GetTempPath(), "sb0t-linktest-hubweb.log");
+            try { File.Delete(hubWebLog); } catch { }
+            WebTestClient hubWeb = new WebTestClient("127.0.0.1", port, hubWebLog);
+            bool hubWebOk = hubWeb.Connect();
+            Console.WriteLine("[hub] web client connected = " + hubWebOk);
+            if (hubWebOk)
+                hubWeb.Login("hubweb");
+
             Console.WriteLine("[hub] sending public text as hubuser (sin custom) y hubuser2 (con custom)");
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub"));
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser2", "@HUB@", "msg-custom-hub"));
@@ -511,7 +546,15 @@ namespace linktest
 
             SendMedia(ServerCore.Linker, "hub");
 
-            Thread.Sleep(6000);
+            Thread.Sleep(3000);
+
+            if (hubWebOk)
+            {
+                hubWeb.SendPublic("hubweb-msg " + new String('x', 260));
+                Console.WriteLine("[hub] web public sent");
+            }
+
+            Thread.Sleep(9000);
             Console.WriteLine("[hub] done");
             Environment.Exit(0);
             return 0;
@@ -555,6 +598,14 @@ namespace linktest
 
             Thread.Sleep(2500);
 
+            String leafWebLog = Path.Combine(Path.GetTempPath(), "sb0t-linktest-leafweb.log");
+            try { File.Delete(leafWebLog); } catch { }
+            WebTestClient leafWeb = new WebTestClient("127.0.0.1", port, leafWebLog);
+            bool leafWebOk = leafWeb.Connect();
+            Console.WriteLine("[leaf] web client connected = " + leafWebOk);
+            if (leafWebOk)
+                leafWeb.Login("leafweb");
+
             Console.WriteLine("[leaf] sending public text as leafuser (sin custom) y leafuser2 (con custom)");
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "", "hola-desde-leaf"));
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser2", "@LEAF@", "msg-custom-leaf"));
@@ -562,10 +613,292 @@ namespace linktest
 
             SendMedia(ServerCore.Linker, "leaf");
 
-            Thread.Sleep(6000);
+            Thread.Sleep(3000);
+
+            if (leafWebOk)
+            {
+                leafWeb.SendPublic("leafweb-msg " + new String('y', 260));
+                Console.WriteLine("[leaf] web public sent");
+            }
+
+            Thread.Sleep(9000);
             Console.WriteLine("[leaf] done");
             Environment.Exit(0);
             return 0;
+        }
+    }
+
+    sealed class WebTestClient
+    {
+        private readonly String host;
+        private readonly ushort port;
+        private readonly String logPath;
+        private Socket sock;
+        private volatile bool running;
+        private readonly object sendLock = new object();
+        private static readonly byte[] mask = new byte[] { 0x11, 0x22, 0x33, 0x44 };
+
+        public WebTestClient(String host, ushort port, String logPath)
+        {
+            this.host = host;
+            this.port = port;
+            this.logPath = logPath;
+        }
+
+        public bool Connect()
+        {
+            try
+            {
+                this.sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                this.sock.Connect(new IPEndPoint(IPAddress.Parse(this.host), this.port));
+                this.sock.Blocking = true;
+
+                byte[] keyBytes = new byte[16];
+                new Random().NextBytes(keyBytes);
+                String key = Convert.ToBase64String(keyBytes);
+
+                String req = "GET / HTTP/1.1\r\n" +
+                             "Host: " + this.host + ":" + this.port + "\r\n" +
+                             "Upgrade: websocket\r\n" +
+                             "Connection: Upgrade\r\n" +
+                             "Sec-WebSocket-Key: " + key + "\r\n" +
+                             "Sec-WebSocket-Version: 13\r\n" +
+                             "Origin: http://" + this.host + "\r\n" +
+                             "\r\n";
+                this.sock.Send(Encoding.ASCII.GetBytes(req));
+
+                List<byte> reply = new List<byte>();
+                byte[] tmp = new byte[4096];
+                DateTime stop = DateTime.UtcNow.AddSeconds(5);
+                bool done = false;
+
+                while (!done && DateTime.UtcNow < stop)
+                {
+                    int n = this.sock.Receive(tmp);
+
+                    if (n <= 0)
+                        return false;
+
+                    for (int i = 0; i < n; i++)
+                        reply.Add(tmp[i]);
+
+                    String text = Encoding.ASCII.GetString(reply.ToArray());
+
+                    if (text.Contains("\r\n\r\n"))
+                    {
+                        if (!text.StartsWith("HTTP/1.1 101"))
+                            return false;
+
+                        done = true;
+                    }
+                }
+
+                if (!done)
+                    return false;
+
+                this.running = true;
+                Thread t = new Thread(this.ReadLoop);
+                t.IsBackground = true;
+                t.Start();
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public void Login(String name)
+        {
+            StringBuilder guid = new StringBuilder();
+            Random r = new Random();
+
+            for (int i = 0; i < 32; i++)
+                guid.Append("0123456789abcdef"[r.Next(16)]);
+
+            String pm = new String('p', 200);
+
+            this.SendText("LOGIN:4,32," + name.Length + ",1,1,200,12" + ":" + "5000" + guid.ToString() + name + "1" + "1" + pm + "/default.png");
+        }
+
+        public void SendPublic(String text)
+        {
+            this.SendText("PUBLIC:" + text.Length + ":" + text);
+        }
+
+        private void SendText(String payload)
+        {
+            if (this.sock == null)
+                return;
+
+            byte[] data = Encoding.UTF8.GetBytes(payload);
+            int header;
+
+            if (data.Length <= 125)
+                header = 2;
+            else if (data.Length < 65536)
+                header = 4;
+            else
+                header = 10;
+
+            byte[] frame = new byte[header + 4 + data.Length];
+            frame[0] = 0x81;
+            int p = 1;
+
+            if (data.Length <= 125)
+                frame[p++] = (byte)(0x80 | data.Length);
+            else if (data.Length < 65536)
+            {
+                frame[p++] = (byte)(0x80 | 126);
+                frame[p++] = (byte)(data.Length >> 8);
+                frame[p++] = (byte)data.Length;
+            }
+            else
+            {
+                frame[p++] = (byte)(0x80 | 127);
+                ulong l = (ulong)data.Length;
+
+                for (int i = 7; i >= 0; i--)
+                {
+                    frame[p + i] = (byte)l;
+                    l >>= 8;
+                }
+
+                p += 8;
+            }
+
+            Buffer.BlockCopy(mask, 0, frame, p, 4);
+            p += 4;
+
+            for (int i = 0; i < data.Length; i++)
+                frame[p + i] = (byte)(data[i] ^ mask[i % 4]);
+
+            try
+            {
+                lock (this.sendLock)
+                    this.sock.Send(frame);
+            }
+            catch { }
+        }
+
+        private void SendPong(byte[] payload)
+        {
+            if (this.sock == null)
+                return;
+
+            byte[] data = payload;
+            byte[] frame = new byte[2 + 4 + data.Length];
+            frame[0] = 0x8A;
+            frame[1] = (byte)(0x80 | (data.Length > 125 ? 125 : data.Length));
+            Buffer.BlockCopy(mask, 0, frame, 2, 4);
+
+            int len = data.Length > 125 ? 125 : data.Length;
+
+            for (int i = 0; i < len; i++)
+                frame[6 + i] = (byte)(data[i] ^ mask[i % 4]);
+
+            try
+            {
+                lock (this.sendLock)
+                    this.sock.Send(frame);
+            }
+            catch { }
+        }
+
+        private void ReadLoop()
+        {
+            List<byte> buf = new List<byte>();
+            byte[] tmp = new byte[8192];
+            StreamWriter w = null;
+
+            try
+            {
+                w = new StreamWriter(this.logPath, false);
+                w.AutoFlush = true;
+            }
+            catch { }
+
+            while (this.running)
+            {
+                int n;
+
+                try { n = this.sock.Receive(tmp); }
+                catch { break; }
+
+                if (n <= 0)
+                    break;
+
+                for (int i = 0; i < n; i++)
+                    buf.Add(tmp[i]);
+
+                while (true)
+                {
+                    if (buf.Count < 2)
+                        break;
+
+                    byte b0 = buf[0];
+                    int op = b0 & 0x0f;
+                    int len = buf[1] & 0x7f;
+                    int offset = 2;
+                    bool masked = (buf[1] & 0x80) != 0;
+
+                    if (len == 126)
+                    {
+                        if (buf.Count < 4) break;
+                        len = (buf[2] << 8) | buf[3];
+                        offset = 4;
+                    }
+                    else if (len == 127)
+                    {
+                        if (buf.Count < 10) break;
+                        ulong l = 0;
+
+                        for (int i = 0; i < 8; i++)
+                            l = (l << 8) | buf[2 + i];
+
+                        len = (int)l;
+                        offset = 10;
+                    }
+
+                    int maskLen = masked ? 4 : 0;
+
+                    if (buf.Count < offset + maskLen + len)
+                        break;
+
+                    byte[] payload = new byte[len];
+
+                    for (int i = 0; i < len; i++)
+                        payload[i] = buf[offset + maskLen + i];
+
+                    if (masked)
+                    {
+                        byte[] mk = new byte[4];
+
+                        for (int i = 0; i < 4; i++)
+                            mk[i] = buf[offset + i];
+
+                        for (int i = 0; i < len; i++)
+                            payload[i] ^= mk[i % 4];
+                    }
+
+                    buf.RemoveRange(0, offset + maskLen + len);
+
+                    if (op == 0x1)
+                    {
+                        if (w != null)
+                            w.WriteLine("FRAME: " + Encoding.UTF8.GetString(payload));
+                    }
+                    else if (op == 0x8)
+                    {
+                        this.running = false;
+                        break;
+                    }
+                    else if (op == 0x9)
+                    {
+                        this.SendPong(payload);
+                    }
+                }
+            }
+
+            if (w != null)
+                w.Dispose();
         }
     }
 }
