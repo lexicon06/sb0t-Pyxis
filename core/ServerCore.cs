@@ -368,13 +368,21 @@ namespace core
         public static void Log(String message)
         {
             ServerLog.Info(message);
-            LogUpdate(null, new ServerLogEventArgs {Message = message});
+
+            EventHandler<ServerLogEventArgs> handler = LogUpdate;
+
+            if (handler != null)
+                handler(null, new ServerLogEventArgs {Message = message});
         }
 
         public static void Log(String message, Exception e)
         {
             ServerLog.Error(message, e);
-            LogUpdate(null, new ServerLogEventArgs {Message = message, Error = e});
+
+            EventHandler<ServerLogEventArgs> handler = LogUpdate;
+
+            if (handler != null)
+                handler(null, new ServerLogEventArgs {Message = message, Error = e});
         }
 
         public bool Open()
