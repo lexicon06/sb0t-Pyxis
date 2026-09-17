@@ -82,7 +82,7 @@ namespace core.ib0t
         public FloodRecord FloodRecord { get; private set; }
 
         private int socket_health = 0;
-        private List<byte> data_in = new List<byte>();
+        private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
 
         private byte[] recv_buffer = new byte[8192];
@@ -896,7 +896,7 @@ namespace core.ib0t
             {
                 if (this.data_in.Count >= 8)
                 {
-                    this.WebCredentials.KeyData = this.data_in.GetRange(0, 8).ToArray();
+                    this.WebCredentials.KeyData = this.data_in.GetRange(0, 8);
                     this.data_in.RemoveRange(0, 8);
                     return true;
                 }

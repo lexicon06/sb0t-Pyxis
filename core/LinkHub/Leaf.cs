@@ -42,7 +42,7 @@ namespace core.LinkHub
         public ushort Protocol { get; set; }
         public List<LinkUser> Users { get; set; }
 
-        private List<byte> data_in = new List<byte>();
+        private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
         private int socket_health = 0;
 

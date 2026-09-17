@@ -99,7 +99,7 @@ namespace core
         public ulong AvatarTimeout { get; set; }
         public bool DefaultAvatar { get; set; }
 
-        private List<byte> data_in = new List<byte>();
+        private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
 
         private byte[] recv_buffer = new byte[8192];
