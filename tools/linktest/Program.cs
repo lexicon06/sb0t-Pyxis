@@ -281,7 +281,7 @@ namespace linktest
 
         private static byte[] AudioBytes(byte seed)
         {
-            byte[] data = new byte[5000];
+            byte[] data = new byte[90000];
             new Random(seed).NextBytes(data);
             return data;
         }
@@ -381,6 +381,11 @@ namespace linktest
             Check(leafWebLog.Contains("AUDIO_HEAD:6,"), "leaf WEB recibe AUDIO de hub WEB (link)");
             Check(hubWebLog.Contains("AUDIO_HEAD:7,"), "hub WEB recibe AUDIO de leaf WEB (link)");
 
+            Check(leafWebLog.Contains("AUDIO_HEAD:6,1:hubweb4"), "leaf WEB recibe AUDIO_HEAD count=4 (stream)");
+            Check(CountOccurrences(leafWebLog, "AUDIO_BLOCK:") >= 4, "leaf WEB recibe 4+ AUDIO_BLOCK (chunks)");
+            Check(hubWebLog.Contains("AUDIO_HEAD:7,1:leafweb4"), "hub WEB recibe AUDIO_HEAD count=4 (stream)");
+            Check(CountOccurrences(hubWebLog, "AUDIO_BLOCK:") >= 4, "hub WEB recibe 4+ AUDIO_BLOCK (chunks)");
+
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
             return failed == 0 ? 0 : 1;
@@ -393,6 +398,20 @@ namespace linktest
                 return File.Exists(path) ? File.ReadAllText(path) : "(no existe: " + path + ")";
             }
             catch (Exception e) { return "(error: " + e.Message + ")"; }
+        }
+
+        private static int CountOccurrences(String haystack, String needle)
+        {
+            int count = 0;
+            int index = 0;
+
+            while ((index = haystack.IndexOf(needle, index)) >= 0)
+            {
+                count++;
+                index += needle.Length;
+            }
+
+            return count;
         }
 
         private static Process StartChild(String dll, String args)
