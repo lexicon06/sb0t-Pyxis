@@ -62,23 +62,11 @@ namespace core.LinkLeaf
         // customName+text when the sender has a custom name, otherwise the server
         // line "\x03""01"name"> ""\x03""12"text. Delivered as MSG_CHAT_SERVER_NOSUCH
         // (print virtual) on the other side, so it always renders.
-        // Role decided by configuration (link_mode), not by LeafPool, so a leaf never
-        // accidentally takes the hub path (which would stop leaf -> hub from working).
-        private static bool IsHub()
+        // Role decided ONLY by configuration (link_mode == Hub). A leaf never takes the
+        // hub path, so leaf -> hub always goes through the link.
+        internal static bool IsHub()
         {
-            int m = Settings.Get<int>("link_mode");
-
-            if (m == (int)LinkHub.LinkMode.Hub)
-                return true;
-
-            if (m == (int)LinkHub.LinkMode.Leaf)
-                return false;
-
-            foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
-                if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
-                    return true;
-
-            return false;
+            return Settings.Get<int>("link_mode") == (int)LinkHub.LinkMode.Hub;
         }
 
         // Custom data broadcast (audio/voice clips and other custom client data) for a
@@ -130,79 +118,25 @@ namespace core.LinkLeaf
 
             int sent = 0;
 
-            bool is_hub = IsHub();
-
-            if (is_hub)
-            {
-                // HUB: send the print straight to every connected leaf. Routing text
-                // through the hub's own self-link does not reach the leaves, so we
-                // deliver directly to each leaf (HubPrintAll prints to the whole leaf).
-                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
-                {
-                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
-                        continue;
-
-                    leaf.SendPacket(LinkHub.HubOutbound.HubPrintAll(leaf, line));
-                    sent++;
-                }
-            }
-            else
-            {
-                // LEAF: per-user print through the link (this is what already worked
-                // leaf -> hub), exactly like the community script.
-                if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
-                    foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                        leaf.Users.ForEach(x =>
-                        {
-                            if (x.Name != sender)
-                            {
-                                x.Print(line);
-                                sent++;
-                            }
-                        });
-            }
-
-            // If the primary path delivered to nobody, try the other one so a
-            // misconfigured role never blocks the relay.
-            if (sent == 0)
-                if (is_hub)
-                {
-                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
-                        foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                            leaf.Users.ForEach(x =>
-                            {
-                                if (x.Name != sender)
-                                {
-                                    x.Print(line);
-                                    sent++;
-                                }
-                            });
-                }
-                else
-                {
-                    foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
-                    {
-                        if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
-                            continue;
-
-                        leaf.SendPacket(LinkHub.HubOutbound.HubPrintAll(leaf, line));
-                        sent++;
-                    }
-                }
-
-            // Last resort: broadcast through the link if nothing was delivered.
-            if (sent == 0 && ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+            // Exactly the community script: for every linked user, send a print.
+            // This is the mechanism that already worked in BOTH directions, so there
+            // is no role detection or alternate path here anymore.
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
                 foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                {
-                    ServerCore.Linker.SendPacket(LeafPrintAll(ServerCore.Linker, leaf.Ident, line));
-                    sent++;
-                }
+                    leaf.Users.ForEach(x =>
+                    {
+                        if (x.Name != sender)
+                        {
+                            x.Print(line);
+                            sent++;
+                        }
+                    });
 
-            ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName + "' len=" + text.Length +
-                " -> " + sent + " (hub=" + is_hub + ")");
+            ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName +
+                "' len=" + text.Length + " -> " + sent);
 
             if (notify != null)
-                notify.Print("[link] relay text -> " + sent + " (hub=" + is_hub + ")");
+                notify.Print("[link] relay text -> " + sent);
 
             return sent;
         }
