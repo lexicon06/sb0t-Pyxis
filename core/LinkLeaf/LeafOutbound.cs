@@ -62,6 +62,56 @@ namespace core.LinkLeaf
         // customName+text when the sender has a custom name, otherwise the server
         // line "\x03""01"name"> ""\x03""12"text. Delivered as MSG_CHAT_SERVER_NOSUCH
         // (print virtual) on the other side, so it always renders.
+        private static bool HasRemoteLeaf()
+        {
+            foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
+                if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
+                    return true;
+
+            return false;
+        }
+
+        // Custom data broadcast (audio/voice clips and other custom client data) for a
+        // whole room. The hub delivers straight to each leaf; a leaf uses the link.
+        public static void RelayCustomDataAll(ushort vroom, String sender, String ident, byte[] data)
+        {
+            if (HasRemoteLeaf())
+            {
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    leaf.SendPacket(LinkHub.HubOutbound.HubCustomDataAll(leaf, vroom, sender, ident, data));
+                }
+            }
+            else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                ServerCore.Linker.SendPacket(LeafCustomDataAll(ServerCore.Linker, vroom, sender, ident, data));
+        }
+
+        public static void RelayCustomDataTo(String target, String sender, String ident, byte[] data)
+        {
+            if (HasRemoteLeaf())
+            {
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    if (leaf.Users.Any(x => x.Name == target))
+                        leaf.SendPacket(LinkHub.HubOutbound.HubCustomDataTo(leaf, sender, target, ident, data));
+                }
+            }
+            else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+            {
+                IClient linked = ServerCore.Linker.FindUser(x => x.Name == target && x.CustomClient);
+
+                if (linked != null)
+                    ServerCore.Linker.SendPacket(LeafCustomDataTo(ServerCore.Linker, linked.IUser.Link.Ident,
+                        sender, target, ident, data));
+            }
+        }
+
         public static void RelayPublicText(String sender, String customName, String text)
         {
             String line = String.IsNullOrEmpty(customName)
@@ -463,10 +513,28 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
+        private static readonly object relay_audio_lock = new object();
+        private static String relay_audio_key = String.Empty;
+        private static ulong relay_audio_time = 0;
+
         public static void RelayAudio(ushort vroom, String sender, String base64)
         {
             if (String.IsNullOrEmpty(base64))
                 return;
+
+            // Coalesce repeated identical calls (the audio library extension calls
+            // user.Audio once per room user) into one single broadcast.
+            String key = sender + "|" + vroom + "|" + base64.Length + "|" + base64.GetHashCode();
+            ulong now = core.Time.Now;
+
+            lock (relay_audio_lock)
+            {
+                if (key == relay_audio_key && (now - relay_audio_time) < 1500)
+                    return;
+
+                relay_audio_key = key;
+                relay_audio_time = now;
+            }
 
             byte[] data;
 

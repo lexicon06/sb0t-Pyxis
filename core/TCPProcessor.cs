@@ -314,16 +314,8 @@ namespace core
                     if (!target.IgnoreList.Contains(client.Name))
                         target.SendPacket(TCPOutbound.CustomData(target, client.Name, ident, data));
                 }
-                else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                {
-                    IClient linked = ServerCore.Linker.FindUser(x => x.Name == name && x.CustomClient);
-
-                    if (linked != null)
-                        ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafCustomDataTo(ServerCore.Linker,
-                                                                                            linked.IUser.Link.Ident,
-                                                                                            client.Name, linked.Name,
-                                                                                            ident, data));
-                }
+                else
+                    LinkLeaf.LeafOutbound.RelayCustomDataTo(name, client.Name, ident, data);
             }
         }
 
@@ -613,8 +605,7 @@ namespace core
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.CustomData(x, client.Name, ident, data)),
                 x => x.LoggedIn && x.Vroom == client.Vroom && x.CustomClient && !x.Quarantined && x.ID != client.ID && !x.IgnoreList.Contains(client.Name));
 
-            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafCustomDataAll(ServerCore.Linker, client.Vroom, client.Name, ident, data));
+            LinkLeaf.LeafOutbound.RelayCustomDataAll(client.Vroom, client.Name, ident, data);
         }
 
         private static void PersonalMessage(AresClient client, TCPPacketReader packet)

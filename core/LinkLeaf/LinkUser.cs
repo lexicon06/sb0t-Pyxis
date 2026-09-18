@@ -104,36 +104,12 @@ namespace core.LinkLeaf
 
         public void Audio(String sender, String base64)
         {
-            if (String.IsNullOrEmpty(base64))
-                return;
-
-            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-            {
-                byte[] data;
-
-                try { data = Convert.FromBase64String(base64); }
-                catch { return; }
-
-                const int max = 40000;
-                int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
-
-                for (int i = 0; i < total; i++)
-                {
-                    int off = i * max;
-                    int len = data.Length - off;
-
-                    if (len > max) len = max;
-                    if (len < 0) len = 0;
-
-                    byte[] chunk = new byte[len];
-
-                    if (len > 0)
-                        Buffer.BlockCopy(data, off, chunk, 0, len);
-
-                    ServerCore.Linker.SendPacket(LeafOutbound.LeafAudio(ServerCore.Linker, this, sender,
-                        (ushort)total, (ushort)i, chunk));
-                }
-            }
+            // Deliver the audio to the whole room through the same relay used by the
+            // web client audio, so it also works from the hub to the leaves (the
+            // old per-target LeafAudio went through the hub self-link and never
+            // reached the leaves). RelayAudio coalesces repeated calls, so the
+            // extension looping over linked users does not duplicate the stream.
+            LeafOutbound.RelayAudio(this.Vroom, sender, base64);
         }
 
         public void Nudge(String sender)
