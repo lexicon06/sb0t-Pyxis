@@ -419,6 +419,10 @@ namespace core.LinkLeaf
                         offset += part.Length;
                     }
 
+                // Dedup: the relay may deliver the same audio through several paths.
+                if (AudioSeen(sender + "|" + vroom + "|" + audio.Length + "|" + AudioHash(audio)))
+                    return;
+
                 String b64 = Convert.ToBase64String(audio);
 
                 // Same as the local audio broadcast / the audio library extension:
@@ -574,6 +578,51 @@ namespace core.LinkLeaf
 
                     foreach (String k in old)
                         text_dedup.Remove(k);
+                }
+
+                return false;
+            }
+        }
+
+        private static uint AudioHash(byte[] data)
+        {
+            uint h = 2166136261;
+
+            for (int i = 0; i < data.Length; i++)
+            {
+                h ^= data[i];
+                h *= 16777619;
+            }
+
+            return h;
+        }
+
+        private static readonly Dictionary<String, ulong> audio_dedup = new Dictionary<String, ulong>();
+        private static readonly object audio_dedup_lock = new object();
+
+        private static bool AudioSeen(String key)
+        {
+            ulong now = core.Time.Now;
+
+            lock (audio_dedup_lock)
+            {
+                ulong last;
+
+                if (audio_dedup.TryGetValue(key, out last) && (now - last) < 5000)
+                    return true;
+
+                audio_dedup[key] = now;
+
+                if (audio_dedup.Count > 200)
+                {
+                    List<String> old = new List<String>();
+
+                    foreach (KeyValuePair<String, ulong> kv in audio_dedup)
+                        if ((now - kv.Value) > 10000)
+                            old.Add(kv.Key);
+
+                    foreach (String k in old)
+                        audio_dedup.Remove(k);
                 }
 
                 return false;
