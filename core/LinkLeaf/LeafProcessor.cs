@@ -428,21 +428,27 @@ namespace core.LinkLeaf
                 // Same as the local audio broadcast / the audio library extension:
                 // inbizier web/mobile get the stream (AUDIO_HEAD/BLOCK); everyone else
                 // gets a notice so they know an audio was played.
+                int played = 0;
+
                 UserPool.WUsers.ForEachWhere(x =>
                 {
                     if (x.IsInbizierWeb || x.IsInbizierMobile)
+                    {
                         x.Audio(sender, b64);
+                        played++;
+                    }
                     else
                         x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, sender + " ha enviado un audio desde inbizio."));
-                }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
+                }, x => x.LoggedIn && !x.Quarantined);
 
                 UserPool.AUsers.ForEachWhere(x =>
                 {
                     x.Audio(sender, b64);
                     x.SendPacket(TCPOutbound.NoSuch(x, sender + " ha enviado un audio desde inbizio."));
-                }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
+                }, x => x.LoggedIn && !x.Quarantined);
 
-                ServerLog.Channel("link", "recv-audio room " + vroom + " from " + sender + " (" + audio.Length + " bytes)");
+                ServerLog.Channel("link", "recv-audio from " + sender + " (" + audio.Length + " bytes) -> " +
+                    played + " inbizier");
             }
             catch (Exception e)
             {
