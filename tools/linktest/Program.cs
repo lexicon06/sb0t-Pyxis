@@ -166,17 +166,17 @@ namespace linktest
         {
             byte[] payload = new byte[100000];
             new Random(7).NextBytes(payload);
+            String b64 = Convert.ToBase64String(payload);
 
-            int total = (payload.Length + 39999) / 40000;
-            byte[][] parts = new byte[total][];
+            int total = (b64.Length + 15999) / 16000;
+            StringBuilder sb = new StringBuilder();
             bool ok = true;
 
             for (int i = 0; i < total && ok; i++)
             {
-                int off = i * 40000;
-                int len = Math.Min(40000, payload.Length - off);
-                byte[] chunk = new byte[len];
-                Buffer.BlockCopy(payload, off, chunk, 0, len);
+                int off = i * 16000;
+                int len = Math.Min(16000, b64.Length - off);
+                String chunk = b64.Substring(off, len);
 
                 LinkMsg msg;
                 TCPPacketReader r = Unwrap(LeafOutbound.LeafAudio(link, User("u1"), "hubuser", (ushort)total, (ushort)i, chunk), out msg);
@@ -186,14 +186,14 @@ namespace linktest
                 String sender = r.ReadString(link);
                 ushort t = r;
                 ushort idx = r;
-                byte[] got = r;
+                String got = r.ReadString(link);
 
                 ok = msg == LinkMsg.MSG_LINK_LEAF_AUDIO && ident == 42 && name == "u1" &&
-                     sender == "hubuser" && t == total && idx == i && Equal(got, chunk);
-                parts[i] = got;
+                     sender == "hubuser" && t == total && idx == i && got == chunk;
+                sb.Append(got);
             }
 
-            Check(ok && Equal(Concat(parts), payload), "audio chunked link roundtrip (100000, 3 chunks)");
+            Check(ok && sb.ToString() == b64, "audio chunked link roundtrip (base64 16000)");
         }
 
         private static void AvatarChunking(LinkClient link)
@@ -500,8 +500,17 @@ namespace linktest
             core.LinkLeaf.LinkUser target = new core.LinkLeaf.LinkUser(ident);
             target.SetName("targetuser");
 
-            SendChunks(link, 90000, 7, (total, index, chunk) =>
-                LeafOutbound.LeafAudio(link, target, tag + "audio", (ushort)total, (ushort)index, chunk));
+            byte[] audio = new byte[90000];
+            new Random(7).NextBytes(audio);
+            String ab64 = Convert.ToBase64String(audio);
+            int atotal = (ab64.Length + 15999) / 16000;
+
+            for (int i = 0; i < atotal; i++)
+            {
+                int off = i * 16000;
+                int len = Math.Min(16000, ab64.Length - off);
+                link.SendPacket(LeafOutbound.LeafAudio(link, target, tag + "audio", (ushort)atotal, (ushort)i, ab64.Substring(off, len)));
+            }
 
             SendChunks(link, 70000, 11, (total, index, chunk) =>
                 LeafOutbound.LeafAvatar(link, tag + "avatar", (ushort)total, (ushort)index, chunk));

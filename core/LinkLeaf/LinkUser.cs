@@ -109,30 +109,21 @@ namespace core.LinkLeaf
 
             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
             {
-                byte[] data;
+                List<String> chunks = new List<String>();
+                String rest = base64;
 
-                try { data = Convert.FromBase64String(base64); }
-                catch { return; }
-
-                const int max = 40000;
-                int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
-
-                for (int i = 0; i < total; i++)
+                while (rest.Length > 16000)
                 {
-                    int off = i * max;
-                    int len = data.Length - off;
-
-                    if (len > max) len = max;
-                    if (len < 0) len = 0;
-
-                    byte[] chunk = new byte[len];
-
-                    if (len > 0)
-                        Buffer.BlockCopy(data, off, chunk, 0, len);
-
-                    ServerCore.Linker.SendPacket(LeafOutbound.LeafAudio(ServerCore.Linker, this, sender,
-                        (ushort)total, (ushort)i, chunk));
+                    chunks.Add(rest.Substring(0, 16000));
+                    rest = rest.Substring(16000);
                 }
+
+                if (rest.Length > 0)
+                    chunks.Add(rest);
+
+                for (int i = 0; i < chunks.Count; i++)
+                    ServerCore.Linker.SendPacket(LeafOutbound.LeafAudio(ServerCore.Linker, this, sender,
+                        (ushort)chunks.Count, (ushort)i, chunks[i]));
             }
         }
 

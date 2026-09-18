@@ -464,7 +464,7 @@ namespace core.LinkLeaf
             }
         }
 
-        public static byte[] LeafAudio(LinkClient x, LinkUser target, String sender, ushort total, ushort index, byte[] chunk)
+        public static byte[] LeafAudio(LinkClient x, LinkUser target, String sender, ushort total, ushort index, String chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteUInt32(target.Link.Ident);
@@ -472,101 +472,13 @@ namespace core.LinkLeaf
             packet.WriteString(x, sender);
             packet.WriteUInt16(total);
             packet.WriteUInt16(index);
-            packet.WriteBytes(chunk);
+            packet.WriteString(x, chunk, false);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AUDIO);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        // Audio broadcast for a whole room (vroom). The receiving server reassembles
-        // it and plays it to every user in that room, exactly like the local
-        // SendAudioToAllBase64 does. This is what makes audio audible in the other
-        // room, instead of targeting a single named user.
-        public static byte[] LeafAudioVroom(LinkClient x, ushort vroom, String sender, ushort total, ushort index, byte[] chunk)
-        {
-            TCPPacketWriter packet = new TCPPacketWriter();
-            packet.WriteUInt16(vroom);
-            packet.WriteString(x, sender);
-            packet.WriteUInt16(total);
-            packet.WriteUInt16(index);
-            packet.WriteBytes(chunk);
-            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AUDIO_VROOM);
-            packet = new TCPPacketWriter();
-            packet.WriteBytes(buf);
-            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
-        }
-
-        private static readonly object relay_audio_lock = new object();
-        private static String relay_audio_key = String.Empty;
-        private static ulong relay_audio_time = 0;
-
-        public static void RelayAudio(ushort vroom, String sender, String base64)
-        {
-            if (String.IsNullOrEmpty(sender) || String.IsNullOrEmpty(base64))
-                return;
-
-            // Coalesce repeated identical calls (the audio library extension calls
-            // user.Audio once per room user) into one single broadcast.
-            String key = sender + "|" + vroom + "|" + base64.Length + "|" + base64.GetHashCode();
-            ulong now = core.Time.Now;
-
-            lock (relay_audio_lock)
-            {
-                if (key == relay_audio_key && (now - relay_audio_time) < 1500)
-                    return;
-
-                relay_audio_key = key;
-                relay_audio_time = now;
-            }
-
-            byte[] data;
-
-            try { data = Convert.FromBase64String(base64); }
-            catch { return; }
-
-            try
-            {
-                bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
-                    ServerCore.Linker.LoginPhase == LinkLogin.Ready;
-
-                const int max = 40000;
-                int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
-
-                for (int i = 0; i < total; i++)
-                {
-                    int off = i * max;
-                    int len = data.Length - off;
-
-                    if (len > max) len = max;
-                    if (len < 0) len = 0;
-
-                    byte[] chunk = new byte[len];
-
-                    if (len > 0)
-                        Buffer.BlockCopy(data, off, chunk, 0, len);
-
-                    // (A) through the link (leaf -> hub, and sibling leaves)
-                    if (link_ready)
-                        ServerCore.Linker.SendPacket(LeafAudioVroom(ServerCore.Linker, vroom, sender, (ushort)total, (ushort)i, chunk));
-
-                    // (B) hub -> each connected leaf directly (no self-link)
-                    foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
-                    {
-                        if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
-                            continue;
-
-                        leaf.SendPacket(LinkHub.HubOutbound.HubAudioVroom(leaf, vroom, sender, (ushort)total, (ushort)i, chunk));
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                ServerLog.ChannelError("link", "relay audio failed (ignored)", e);
-            }
-
-            ServerLog.Channel("link", "relay audio: " + sender + " -> room " + vroom + " (" + data.Length + " bytes)");
-        }
 
         public static byte[] LeafAdmin(LinkClient x, IClient admin, String command, IClient target, String args)
         {

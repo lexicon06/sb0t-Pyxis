@@ -173,10 +173,6 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO:
                     HubAudio(link, packet);
                     break;
-
-                case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO_VROOM:
-                    HubAudioVroom(link, packet);
-                    break;
             }
         }
 
@@ -281,7 +277,7 @@ namespace core.LinkLeaf
         private class AudioChunks
         {
             public ushort Total;
-            public byte[][] Parts;
+            public String[] Parts;
             public int Received;
         }
 
@@ -295,7 +291,7 @@ namespace core.LinkLeaf
                 String sender = packet.ReadString(link);
                 ushort total = packet;
                 ushort index = packet;
-                byte[] chunk = packet;
+                String chunk = packet.ReadString(link);
 
                 if (total == 0 || index >= total)
                     return;
@@ -305,7 +301,7 @@ namespace core.LinkLeaf
 
                 if (!audio_chunks.TryGetValue(key, out buf) || buf.Total != total)
                 {
-                    buf = new AudioChunks { Total = total, Parts = new byte[total][], Received = 0 };
+                    buf = new AudioChunks { Total = total, Parts = new String[total], Received = 0 };
                     audio_chunks[key] = buf;
                 }
 
@@ -320,23 +316,10 @@ namespace core.LinkLeaf
 
                 audio_chunks.Remove(key);
 
-                int size = 0;
+                StringBuilder sb = new StringBuilder();
 
-                foreach (byte[] part in buf.Parts)
-                    if (part != null)
-                        size += part.Length;
-
-                byte[] audio = new byte[size];
-                int offset = 0;
-
-                foreach (byte[] part in buf.Parts)
-                    if (part != null)
-                    {
-                        Buffer.BlockCopy(part, 0, audio, offset, part.Length);
-                        offset += part.Length;
-                    }
-
-                String b64 = Convert.ToBase64String(audio);
+                foreach (String part in buf.Parts)
+                    sb.Append(part);
 
                 IClient client = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
@@ -344,22 +327,9 @@ namespace core.LinkLeaf
                     client = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (client != null)
-                    client.IUser.Audio(sender, b64);
-                else
-                {
-                    // Fallback: the named target was not found on this server, so play
-                    // it for the whole server's inbizier users instead of losing it.
-                    UserPool.WUsers.ForEachWhere(x =>
-                    {
-                        if (x.IsInbizierWeb || x.IsInbizierMobile)
-                            x.Audio(sender, b64);
-                    }, x => x.LoggedIn && !x.Quarantined);
+                    client.IUser.Audio(sender, sb.ToString());
 
-                    UserPool.AUsers.ForEachWhere(x => x.Audio(sender, b64),
-                        x => x.LoggedIn && !x.Quarantined);
-                }
-
-                ServerLog.Channel("link", "recv-audio from " + sender + " to " + target + " (" + audio.Length + " bytes)");
+                ServerLog.Channel("link", "recv-audio from " + sender + " to " + target + " (" + sb.Length + " chars)");
             }
             catch (Exception e)
             {
@@ -368,93 +338,7 @@ namespace core.LinkLeaf
             }
         }
 
-        private static Dictionary<String, AudioChunks> audio_vroom_chunks = new Dictionary<String, AudioChunks>();
 
-        private static void HubAudioVroom(LinkClient link, TCPPacketReader packet)
-        {
-            try
-            {
-                ushort vroom = packet;
-                String sender = packet.ReadString(link);
-                ushort total = packet;
-                ushort index = packet;
-                byte[] chunk = packet;
-
-                if (total == 0 || index >= total)
-                    return;
-
-                String key = vroom + "\u0000" + sender;
-                AudioChunks buf;
-
-                if (!audio_vroom_chunks.TryGetValue(key, out buf) || buf.Total != total)
-                {
-                    buf = new AudioChunks { Total = total, Parts = new byte[total][], Received = 0 };
-                    audio_vroom_chunks[key] = buf;
-                }
-
-                if (buf.Parts[index] == null)
-                {
-                    buf.Parts[index] = chunk;
-                    buf.Received++;
-                }
-
-                if (buf.Received < buf.Total)
-                    return;
-
-                audio_vroom_chunks.Remove(key);
-
-                int size = 0;
-
-                foreach (byte[] part in buf.Parts)
-                    if (part != null)
-                        size += part.Length;
-
-                byte[] audio = new byte[size];
-                int offset = 0;
-
-                foreach (byte[] part in buf.Parts)
-                    if (part != null)
-                    {
-                        Buffer.BlockCopy(part, 0, audio, offset, part.Length);
-                        offset += part.Length;
-                    }
-
-                // Dedup: the relay may deliver the same audio through several paths.
-                if (AudioSeen(sender + "|" + vroom + "|" + audio.Length + "|" + AudioHash(audio)))
-                    return;
-
-                String b64 = Convert.ToBase64String(audio);
-
-                // Same as the local audio broadcast / the audio library extension:
-                // inbizier web/mobile get the stream (AUDIO_HEAD/BLOCK); everyone else
-                // gets a notice so they know an audio was played.
-                int played = 0;
-
-                UserPool.WUsers.ForEachWhere(x =>
-                {
-                    if (x.IsInbizierWeb || x.IsInbizierMobile)
-                    {
-                        x.Audio(sender, b64);
-                        played++;
-                    }
-                    else
-                        x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, sender + " ha enviado un audio desde inbizio."));
-                }, x => x.LoggedIn && !x.Quarantined);
-
-                UserPool.AUsers.ForEachWhere(x =>
-                {
-                    x.Audio(sender, b64);
-                    x.SendPacket(TCPOutbound.NoSuch(x, sender + " ha enviado un audio desde inbizio."));
-                }, x => x.LoggedIn && !x.Quarantined);
-
-                ServerLog.Channel("link", "recv-audio from " + sender + " (" + audio.Length + " bytes) -> " +
-                    played + " inbizier");
-            }
-            catch (Exception e)
-            {
-                ServerLog.ChannelError("link", "audio vroom relay failed (ignored)", e);
-            }
-        }
 
         private static void HubNudge(LinkClient link, TCPPacketReader packet)
         {
@@ -590,50 +474,6 @@ namespace core.LinkLeaf
             }
         }
 
-        private static uint AudioHash(byte[] data)
-        {
-            uint h = 2166136261;
-
-            for (int i = 0; i < data.Length; i++)
-            {
-                h ^= data[i];
-                h *= 16777619;
-            }
-
-            return h;
-        }
-
-        private static readonly Dictionary<String, ulong> audio_dedup = new Dictionary<String, ulong>();
-        private static readonly object audio_dedup_lock = new object();
-
-        private static bool AudioSeen(String key)
-        {
-            ulong now = core.Time.Now;
-
-            lock (audio_dedup_lock)
-            {
-                ulong last;
-
-                if (audio_dedup.TryGetValue(key, out last) && (now - last) < 5000)
-                    return true;
-
-                audio_dedup[key] = now;
-
-                if (audio_dedup.Count > 200)
-                {
-                    List<String> old = new List<String>();
-
-                    foreach (KeyValuePair<String, ulong> kv in audio_dedup)
-                        if ((now - kv.Value) > 10000)
-                            old.Add(kv.Key);
-
-                    foreach (String k in old)
-                        audio_dedup.Remove(k);
-                }
-
-                return false;
-            }
-        }
 
         private static void HubPrintAll(LinkClient link, TCPPacketReader packet)
         {
