@@ -57,10 +57,11 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        // Relay a local user's public text to the linked users, the same way the
-        // community script does (per-user "print"): custom name -> "customName+text",
-        // otherwise a server line "\x03""01"name"> ""\x03""12"text. This is delivered
-        // as MSG_CHANNEL_SERVER_NOSUCH on the other side, so it always renders.
+        // Relay a local user's public text to the linked users, EXACTLY like the
+        // community script does: Users.linked(...) -> per-user print, with
+        // customName+text when the sender has a custom name, otherwise the server
+        // line "\x03""01"name"> ""\x03""12"text. Delivered as MSG_CHAT_SERVER_NOSUCH
+        // (print virtual) on the other side, so it always renders.
         public static void RelayPublicText(String sender, String customName, String text)
         {
             String line = String.IsNullOrEmpty(customName)
@@ -68,40 +69,33 @@ namespace core.LinkLeaf
                 : customName + text;
 
             int sent = 0;
+            List<uint> covered = new List<uint>();
 
-            bool has_remote_leaf = false;
-
-            foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
-                if (!leaf.Local && leaf.LoginPhase == LinkHub.LinkLogin.Ready)
+            // (A) EXACTLY the script: for every linked user, send a print.
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                foreach (Leaf leaf in ServerCore.Linker.Leaves)
                 {
-                    has_remote_leaf = true;
-                    break;
+                    covered.Add(leaf.Ident);
+
+                    leaf.Users.ForEach(x =>
+                    {
+                        if (x.Name != sender)
+                        {
+                            x.Print(line);
+                            sent++;
+                        }
+                    });
                 }
 
-            // (A) Leaf mode: deliver to the users we know through our link
-            // (this is the path that already worked for leaf -> hub).
-            if (!has_remote_leaf)
-                if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
-                    foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                        leaf.Users.ForEach(x =>
-                        {
-                            if (x.Name != sender)
-                            {
-                                x.Print(line);
-                                sent++;
-                            }
-                        });
-
-            // (B) Hub mode: deliver directly to each connected leaf (correct leaf ident).
+            // (B) Extra, only for hub leaves that (A) did not cover: send the print
+            // straight to the leaf (does not depend on the self-link). Never replaces
+            // (A), so it can't break what already works.
             foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
             {
-                if (leaf.Local)
+                if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
                     continue;
 
-                ServerLog.Channel("link", "relay leaf: " + leaf.Name + " ready=" +
-                    (leaf.LoginPhase == LinkHub.LinkLogin.Ready) + " users=" + leaf.Users.Count);
-
-                if (leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                if (covered.Contains(leaf.Ident))
                     continue;
 
                 leaf.Users.ForEach(x =>
@@ -114,7 +108,7 @@ namespace core.LinkLeaf
                 });
             }
 
-            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users (hub=" + has_remote_leaf + ")");
+            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users (" + covered.Count + " via link)");
         }
 
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)
@@ -440,6 +434,59 @@ namespace core.LinkLeaf
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        // Audio broadcast for a whole room (vroom). The receiving server reassembles
+        // it and plays it to every user in that room, exactly like the local
+        // SendAudioToAllBase64 does. This is what makes audio audible in the other
+        // room, instead of targeting a single named user.
+        public static byte[] LeafAudioVroom(LinkClient x, ushort vroom, String sender, ushort total, ushort index, byte[] chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt16(vroom);
+            packet.WriteString(x, sender);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AUDIO_VROOM);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static void RelayAudio(ushort vroom, String sender, String base64)
+        {
+            if (String.IsNullOrEmpty(base64))
+                return;
+
+            if (!(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready))
+                return;
+
+            byte[] data;
+
+            try { data = Convert.FromBase64String(base64); }
+            catch { return; }
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                ServerCore.Linker.SendPacket(LeafAudioVroom(ServerCore.Linker, vroom, sender, (ushort)total, (ushort)i, chunk));
+            }
+
+            ServerLog.Channel("link", "relay audio: " + sender + " -> room " + vroom + " (" + data.Length + " bytes)");
         }
 
         public static byte[] LeafAdmin(LinkClient x, IClient admin, String command, IClient target, String args)

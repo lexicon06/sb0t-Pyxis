@@ -483,7 +483,7 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("sb0t link relay v3 81ca7bb | isLinked=" +
+                client.Print("sb0t link relay v4 | isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " leaves=" + leaves + " linkedUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);

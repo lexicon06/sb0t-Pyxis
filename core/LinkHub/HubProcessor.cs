@@ -168,6 +168,10 @@ namespace core.LinkHub
                 case LinkMsg.MSG_LINK_LEAF_AUDIO:
                     LeafAudio(leaf, packet);
                     break;
+
+                case LinkMsg.MSG_LINK_LEAF_AUDIO_VROOM:
+                    LeafAudioVroom(leaf, packet);
+                    break;
             }
         }
 
@@ -297,6 +301,32 @@ namespace core.LinkHub
             {
                 // Audio is best-effort: a bad audio packet must never drop the link.
                 ServerLog.ChannelError("link", "audio relay failed on hub (ignored)", e);
+            }
+        }
+
+        private static void LeafAudioVroom(Leaf leaf, TCPPacketReader packet)
+        {
+            if (leaf.LoginPhase != LinkLogin.Ready)
+            {
+                leaf.SendPacket(HubOutbound.LinkError(LinkError.BadProtocol));
+                leaf.Disconnect();
+                return;
+            }
+
+            try
+            {
+                ushort vroom = packet;
+                String sender = packet.ReadString(leaf);
+                ushort total = packet;
+                ushort index = packet;
+                byte[] chunk = packet;
+
+                LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubAudioVroom(x, vroom, sender, total, index, chunk)),
+                    x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "audio vroom relay failed on hub (ignored)", e);
             }
         }
 

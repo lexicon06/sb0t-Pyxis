@@ -383,10 +383,7 @@ namespace core.ib0t
                     UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.NoSuch(x, sender + " ha enviado un audio desde inbizio.")),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
 
-                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
-                            leaf.Users.ForEachWhere(x => x.Audio(sender, text),
-                                x => x.Vroom == client.Vroom);
+                    LinkLeaf.LeafOutbound.RelayAudio(client.Vroom, sender, text);
                 }
                 catch (Exception e)
                 {

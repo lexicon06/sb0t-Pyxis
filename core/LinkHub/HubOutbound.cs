@@ -464,6 +464,20 @@ namespace core.LinkHub
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
+        public static byte[] HubAudioVroom(Leaf x, ushort vroom, String sender, ushort total, ushort index, byte[] chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt16(vroom);
+            packet.WriteString(x, sender);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
+            byte[] buf = packet.ToLinkPacket(LinkMsg.MSG_LINK_HUB_AUDIO_VROOM);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
         public static byte[] HubAdmin(Leaf x, LinkUser admin, String command, LinkUser target, String args)
         {
             TCPPacketWriter packet = new TCPPacketWriter();

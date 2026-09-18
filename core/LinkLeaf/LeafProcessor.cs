@@ -173,6 +173,10 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO:
                     HubAudio(link, packet);
                     break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO_VROOM:
+                    HubAudioVroom(link, packet);
+                    break;
             }
         }
 
@@ -332,13 +336,28 @@ namespace core.LinkLeaf
                         offset += part.Length;
                     }
 
+                String b64 = Convert.ToBase64String(audio);
+
                 IClient client = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (client == null)
                     client = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (client != null)
-                    client.IUser.Audio(sender, Convert.ToBase64String(audio));
+                    client.IUser.Audio(sender, b64);
+                else
+                {
+                    // Fallback: the named target was not found on this server, so play
+                    // it for the whole server's inbizier users instead of losing it.
+                    UserPool.WUsers.ForEachWhere(x =>
+                    {
+                        if (x.IsInbizierWeb || x.IsInbizierMobile)
+                            x.Audio(sender, b64);
+                    }, x => x.LoggedIn && !x.Quarantined);
+
+                    UserPool.AUsers.ForEachWhere(x => x.Audio(sender, b64),
+                        x => x.LoggedIn && !x.Quarantined);
+                }
 
                 ServerLog.Channel("link", "recv-audio from " + sender + " to " + target + " (" + audio.Length + " bytes)");
             }
@@ -346,6 +365,76 @@ namespace core.LinkLeaf
             {
                 // Audio is best-effort: a bad audio packet must never drop the link.
                 ServerLog.ChannelError("link", "audio relay failed (ignored)", e);
+            }
+        }
+
+        private static Dictionary<String, AudioChunks> audio_vroom_chunks = new Dictionary<String, AudioChunks>();
+
+        private static void HubAudioVroom(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                ushort vroom = packet;
+                String sender = packet.ReadString(link);
+                ushort total = packet;
+                ushort index = packet;
+                byte[] chunk = packet;
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = vroom + "\u0000" + sender;
+                AudioChunks buf;
+
+                if (!audio_vroom_chunks.TryGetValue(key, out buf) || buf.Total != total)
+                {
+                    buf = new AudioChunks { Total = total, Parts = new byte[total][], Received = 0 };
+                    audio_vroom_chunks[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                audio_vroom_chunks.Remove(key);
+
+                int size = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                        size += part.Length;
+
+                byte[] audio = new byte[size];
+                int offset = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                    {
+                        Buffer.BlockCopy(part, 0, audio, offset, part.Length);
+                        offset += part.Length;
+                    }
+
+                String b64 = Convert.ToBase64String(audio);
+
+                UserPool.WUsers.ForEachWhere(x =>
+                {
+                    if (x.IsInbizierWeb || x.IsInbizierMobile)
+                        x.Audio(sender, b64);
+                }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
+
+                UserPool.AUsers.ForEachWhere(x => x.Audio(sender, b64),
+                    x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
+
+                ServerLog.Channel("link", "recv-audio room " + vroom + " from " + sender + " (" + audio.Length + " bytes)");
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "audio vroom relay failed (ignored)", e);
             }
         }
 
