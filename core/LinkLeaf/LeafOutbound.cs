@@ -69,47 +69,47 @@ namespace core.LinkLeaf
                 : customName + text;
 
             int sent = 0;
-            List<uint> covered = new List<uint>();
 
-            // (A) EXACTLY the script: for every linked user, send a print.
-            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
-                foreach (Leaf leaf in ServerCore.Linker.Leaves)
+            bool is_hub = false;
+
+            foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
+                if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
                 {
-                    covered.Add(leaf.Ident);
-
-                    leaf.Users.ForEach(x =>
-                    {
-                        if (x.Name != sender)
-                        {
-                            x.Print(line);
-                            sent++;
-                        }
-                    });
+                    is_hub = true;
+                    break;
                 }
 
-            // (B) Extra, only for hub leaves that (A) did not cover: send the print
-            // straight to the leaf (does not depend on the self-link). Never replaces
-            // (A), so it can't break what already works.
-            foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+            if (is_hub)
             {
-                if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
-                    continue;
-
-                if (covered.Contains(leaf.Ident))
-                    continue;
-
-                leaf.Users.ForEach(x =>
+                // HUB: send the print straight to every connected leaf. Routing text
+                // through the hub's own self-link does not reach the leaves, so we
+                // deliver directly to each leaf (HubPrintAll prints to the whole leaf).
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
                 {
-                    if (x.Name != sender)
-                    {
-                        leaf.SendPacket(LinkHub.HubOutbound.HubIUser(leaf, x.Name, "print", new String[] { line }));
-                        sent++;
-                    }
-                });
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    leaf.SendPacket(LinkHub.HubOutbound.HubPrintAll(leaf, line));
+                    sent++;
+                }
+            }
+            else
+            {
+                // LEAF: per-user print through the link (this is what already worked
+                // leaf -> hub), exactly like the community script.
+                if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                    foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                        leaf.Users.ForEach(x =>
+                        {
+                            if (x.Name != sender)
+                            {
+                                x.Print(line);
+                                sent++;
+                            }
+                        });
             }
 
-            // (C) Last resort: if (A)/(B) delivered to nobody, broadcast the print to
-            // the whole linked leaf. LeafPrintAll does not depend on knowing users.
+            // Last resort: broadcast through the link if nothing was delivered.
             if (sent == 0 && ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
                 foreach (Leaf leaf in ServerCore.Linker.Leaves)
                 {
@@ -117,7 +117,7 @@ namespace core.LinkLeaf
                     sent++;
                 }
 
-            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users (" + covered.Count + " via link)");
+            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " (hub=" + is_hub + ")");
         }
 
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)
@@ -468,13 +468,22 @@ namespace core.LinkLeaf
             if (String.IsNullOrEmpty(base64))
                 return;
 
-            if (!(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready))
-                return;
-
             byte[] data;
 
             try { data = Convert.FromBase64String(base64); }
             catch { return; }
+
+            bool is_hub = false;
+
+            foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
+                if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
+                {
+                    is_hub = true;
+                    break;
+                }
+
+            if (!is_hub && !(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready))
+                return;
 
             const int max = 40000;
             int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
@@ -492,10 +501,25 @@ namespace core.LinkLeaf
                 if (len > 0)
                     Buffer.BlockCopy(data, off, chunk, 0, len);
 
-                ServerCore.Linker.SendPacket(LeafAudioVroom(ServerCore.Linker, vroom, sender, (ushort)total, (ushort)i, chunk));
+                if (is_hub)
+                {
+                    // HUB: send straight to each connected leaf (the self-link route does
+                    // not reach the leaves).
+                    foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                    {
+                        if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                            continue;
+
+                        leaf.SendPacket(LinkHub.HubOutbound.HubAudioVroom(leaf, vroom, sender, (ushort)total, (ushort)i, chunk));
+                    }
+                }
+                else
+                {
+                    ServerCore.Linker.SendPacket(LeafAudioVroom(ServerCore.Linker, vroom, sender, (ushort)total, (ushort)i, chunk));
+                }
             }
 
-            ServerLog.Channel("link", "relay audio: " + sender + " -> room " + vroom + " (" + data.Length + " bytes)");
+            ServerLog.Channel("link", "relay audio: " + sender + " -> room " + vroom + " (" + data.Length + " bytes, hub=" + is_hub + ")");
         }
 
         public static byte[] LeafAdmin(LinkClient x, IClient admin, String command, IClient target, String args)
