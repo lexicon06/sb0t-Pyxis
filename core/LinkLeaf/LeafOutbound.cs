@@ -112,7 +112,7 @@ namespace core.LinkLeaf
             }
         }
 
-        public static void RelayPublicText(String sender, String customName, String text)
+        public static int RelayPublicText(String sender, String customName, String text, IClient notify = null)
         {
             String line = String.IsNullOrEmpty(customName)
                 ? "\u0003" + "01" + sender + "> " + "\u0003" + "12" + text
@@ -167,7 +167,13 @@ namespace core.LinkLeaf
                     sent++;
                 }
 
-            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " (hub=" + is_hub + ")");
+            ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName + "' len=" + text.Length +
+                " -> " + sent + " (hub=" + is_hub + ")");
+
+            if (notify != null)
+                notify.Print("[link] relay text -> " + sent + " (hub=" + is_hub + ")");
+
+            return sent;
         }
 
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)

@@ -505,8 +505,6 @@ namespace core
                             ib0t.WebOutbound.PublicTo(x, client.Name, text) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                        LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, text);
-
                         Events.TextSent(client, text);
                     }
                 }

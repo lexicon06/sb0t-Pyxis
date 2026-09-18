@@ -975,6 +975,11 @@ namespace core.ib0t
         private static void Text(ib0tClient client, String args, ulong time)
         {
             String text = args;
+
+            if (client.IsInbizierWeb || client.IsInbizierMobile)
+                ServerLog.Channel("link", "web text in: '" + client.Name + "' inbiz=" +
+                    (client.IsInbizierWeb ? "web" : "mobile") + " len=" + text.Length);
+
             if (text.StartsWith("#login") || text.StartsWith("#register"))
             {
                 Command(client, text.Substring(1));
@@ -1072,8 +1077,6 @@ namespace core.ib0t
                         UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(client.CustomName) ?
                             ib0t.WebOutbound.PublicTo(x, client.Name, text) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
-
-                        LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, text);
 
                         Events.TextSent(client, text);
                     }

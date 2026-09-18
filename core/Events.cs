@@ -294,6 +294,12 @@ namespace core
         {
             String result = text;
 
+            // Link relay, fired at the exact same point the community onTextBefore
+            // script ran, so hub <-> leaf works for every local message the same way
+            // the script did (regardless of what a script/command returns afterwards).
+            if (client is AresClient || client is ib0t.ib0tClient)
+                LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, result, client);
+
             result = js.TextSending(client != null ? client.IUser : null, result);
 
             if (!String.IsNullOrEmpty(result) && DefaultCommands)
@@ -483,14 +489,14 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("sb0t link relay v6 | isLinked=" +
+                client.Print("sb0t link relay v7 | isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " leaves=" + leaves + " linkedUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);
                 return;
             }
 
-            if (command == "linktest")
+            if (command == "linktest" || command.StartsWith("linktest "))
             {
                 int leaves = ServerCore.Linker != null ? ServerCore.Linker.Leaves.Count : 0;
                 int linked = 0;
@@ -499,13 +505,18 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("linktest v6: isLinked=" +
+                client.Print("linktest v7: isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " linkLeaves=" + leaves + " linkUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);
 
-                LinkLeaf.LeafOutbound.RelayPublicText("LINKTEST", "", "prueba " + Helpers.UnixTime);
-                client.Print("linktest: RelayPublicText ejecutado (mira el otro server)");
+                String testText = command.Length > 9 ? command.Substring(9).Trim() : String.Empty;
+
+                if (String.IsNullOrEmpty(testText))
+                    testText = "prueba " + Helpers.UnixTime;
+
+                LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, testText, client);
+                client.Print("linktest: RelayPublicText de '" + client.Name + "' con '" + testText + "' (mira el otro server)");
                 return;
             }
 
