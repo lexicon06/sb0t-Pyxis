@@ -490,6 +490,25 @@ namespace core
                 return;
             }
 
+            if (command == "linktest")
+            {
+                int leaves = ServerCore.Linker != null ? ServerCore.Linker.Leaves.Count : 0;
+                int linked = 0;
+
+                if (ServerCore.Linker != null)
+                    foreach (var l in ServerCore.Linker.Leaves)
+                        linked += l.Users.Count;
+
+                client.Print("linktest v4: isLinked=" +
+                    (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
+                    " linkLeaves=" + leaves + " linkUsers=" + linked +
+                    " leafPool=" + LinkHub.LeafPool.Leaves.Count);
+
+                LinkLeaf.LeafOutbound.RelayPublicText("LINKTEST", "", "prueba " + Helpers.UnixTime);
+                client.Print("linktest: RelayPublicText ejecutado (mira el otro server)");
+                return;
+            }
+
             if (!client.Captcha)
                 if (!command.StartsWith("login "))
                     return;

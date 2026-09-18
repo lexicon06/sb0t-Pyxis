@@ -108,6 +108,15 @@ namespace core.LinkLeaf
                 });
             }
 
+            // (C) Last resort: if (A)/(B) delivered to nobody, broadcast the print to
+            // the whole linked leaf. LeafPrintAll does not depend on knowing users.
+            if (sent == 0 && ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                {
+                    ServerCore.Linker.SendPacket(LeafPrintAll(ServerCore.Linker, leaf.Ident, line));
+                    sent++;
+                }
+
             ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users (" + covered.Count + " via link)");
         }
 
