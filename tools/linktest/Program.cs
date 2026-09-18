@@ -386,8 +386,8 @@ namespace linktest
             Check(hubWebLog.Contains("AUDIO_HEAD:7,1:leafweb4"), "hub WEB recibe AUDIO_HEAD count=4 (stream)");
             Check(CountOccurrences(hubWebLog, "AUDIO_BLOCK:") >= 4, "hub WEB recibe 4+ AUDIO_BLOCK (chunks)");
 
-            Check(leafWebLog.Contains("AUDIO_HEAD:6,1:hubweb3"), "leaf WEB recibe AUDIO de la extension del hub (stream en el destino)");
-            Check(hubWebLog.Contains("AUDIO_HEAD:7,1:leafweb3"), "hub WEB recibe AUDIO de la extension del leaf (stream en el destino)");
+            Check(leafWebLog.Contains("AUDIO_HEAD:6,1:hubext3"), "leaf WEB recibe AUDIO de la extension del hub (stream en el destino)");
+            Check(hubWebLog.Contains("AUDIO_HEAD:7,1:leafext3"), "hub WEB recibe AUDIO de la extension del leaf (stream en el destino)");
 
             Check(CountOccurrences(leafWebLog, "hubweb-msg") == 1, "leaf WEB: 1 sola copia del texto del hub (sin duplicar)");
             Check(CountOccurrences(hubWebLog, "leafweb-msg") == 1, "hub WEB: 1 sola copia del texto del leaf (sin duplicar)");
@@ -519,25 +519,22 @@ namespace linktest
         {
             byte[] data = new byte[60000];
             new Random(tag == "hub" ? 0x61 : 0x62).NextBytes(data);
-            String sender = tag + "web";
+            String sender = tag + "ext";
             String b64 = Convert.ToBase64String(data);
 
             int users = 0;
 
             // Mimic the audio library extension: it calls user.Audio(sender, base64) on
-            // every user of the room. For the sender's own ib0tClient that also relays
-            // to the linked servers (see ib0tClient.Audio).
-            foreach (core.ib0t.ib0tClient u in core.UserPool.WUsers)
-            {
-                if (u.LoggedIn && !u.Quarantined)
+            // every user of the room, including the linked users (Host.Users.Linked).
+            foreach (core.LinkLeaf.Leaf leaf in link.Leaves)
+                foreach (core.LinkLeaf.LinkUser u in leaf.Users)
                 {
                     u.Audio(sender, b64);
                     users++;
                 }
-            }
 
             Console.WriteLine("[" + tag + "] extension audio sent as '" + sender + "' (" + data.Length +
-                " bytes) localWebUsers=" + users);
+                " bytes) leaves=" + link.Leaves.Count + " linkedUsers=" + users);
         }
 
         private static void ConfigureIdentity(String identity, ushort port, String name, byte[] guid, int linkMode)

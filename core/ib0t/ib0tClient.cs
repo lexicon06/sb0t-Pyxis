@@ -258,13 +258,6 @@ namespace core.ib0t
                 int len = Math.Min(30000, base64.Length - off);
                 this.QueuePacket(WebOutbound.AudioBlock(this, base64.Substring(off, len)));
             }
-
-            // When this is the audio's own sender (the extension streams it to the whole
-            // room, including the sender), relay it to the linked servers so the other
-            // rooms stream it too. Received (linked) audio has a different sender name,
-            // so this never loops.
-            if (this.Name == sender)
-                LinkLeaf.LeafOutbound.RelayAudio(this.Vroom, sender, base64);
         }
         public void PmAudio(String sender, String base64)
         {
