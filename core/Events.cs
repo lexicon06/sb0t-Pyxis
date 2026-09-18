@@ -474,6 +474,22 @@ namespace core
                 return;
             }
 
+            if (command == "linkbuild")
+            {
+                int leaves = ServerCore.Linker != null ? ServerCore.Linker.Leaves.Count : 0;
+                int linked = 0;
+
+                if (ServerCore.Linker != null)
+                    foreach (var l in ServerCore.Linker.Leaves)
+                        linked += l.Users.Count;
+
+                client.Print("sb0t link relay v3 81ca7bb | isLinked=" +
+                    (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
+                    " leaves=" + leaves + " linkedUsers=" + linked +
+                    " leafPool=" + LinkHub.LeafPool.Leaves.Count);
+                return;
+            }
+
             if (!client.Captcha)
                 if (!command.StartsWith("login "))
                     return;
