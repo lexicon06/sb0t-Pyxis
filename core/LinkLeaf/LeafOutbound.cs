@@ -68,33 +68,40 @@ namespace core.LinkLeaf
                 : customName + text;
 
             int sent = 0;
-            List<uint> covered = new List<uint>();
 
-            // (A) Link path: reaches the users we know through our link. This is the
-            // path that already worked (leaf -> hub and siblings).
-            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
-                foreach (Leaf leaf in ServerCore.Linker.Leaves)
+            bool has_remote_leaf = false;
+
+            foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                if (!leaf.Local && leaf.LoginPhase == LinkHub.LinkLogin.Ready)
                 {
-                    covered.Add(leaf.Ident);
-                    leaf.Users.ForEach(x =>
-                    {
-                        if (x.Name != sender)
-                        {
-                            x.Print(line);
-                            sent++;
-                        }
-                    });
+                    has_remote_leaf = true;
+                    break;
                 }
 
-            // (B) Hub path: deliver directly to this server's own leaves, for the
-            // leaves NOT already covered above (this is what was missing hub -> leaf).
-            // Skip the local/self leaf so it never echoes inside the same server.
+            // (A) Leaf mode: deliver to the users we know through our link
+            // (this is the path that already worked for leaf -> hub).
+            if (!has_remote_leaf)
+                if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                    foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                        leaf.Users.ForEach(x =>
+                        {
+                            if (x.Name != sender)
+                            {
+                                x.Print(line);
+                                sent++;
+                            }
+                        });
+
+            // (B) Hub mode: deliver directly to each connected leaf (correct leaf ident).
             foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
             {
-                if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                if (leaf.Local)
                     continue;
 
-                if (covered.Contains(leaf.Ident))
+                ServerLog.Channel("link", "relay leaf: " + leaf.Name + " ready=" +
+                    (leaf.LoginPhase == LinkHub.LinkLogin.Ready) + " users=" + leaf.Users.Count);
+
+                if (leaf.LoginPhase != LinkHub.LinkLogin.Ready)
                     continue;
 
                 leaf.Users.ForEach(x =>
@@ -107,7 +114,7 @@ namespace core.LinkLeaf
                 });
             }
 
-            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users");
+            ServerLog.Channel("link", "relay text: " + sender + " -> " + sent + " users (hub=" + has_remote_leaf + ")");
         }
 
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)
