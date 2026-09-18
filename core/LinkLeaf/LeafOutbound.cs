@@ -151,9 +151,6 @@ namespace core.LinkLeaf
             ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName +
                 "' len=" + text.Length + " -> " + sent);
 
-            if (notify != null)
-                notify.Print("[link] relay text -> " + sent);
-
             return sent;
         }
 
