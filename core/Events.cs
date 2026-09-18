@@ -489,7 +489,7 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("sb0t link relay v12 | isLinked=" +
+                client.Print("sb0t link relay v13 | isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " leaves=" + leaves + " linkedUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);
@@ -505,7 +505,7 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("linktest v12: isLinked=" +
+                client.Print("linktest v13: isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " linkLeaves=" + leaves + " linkUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);

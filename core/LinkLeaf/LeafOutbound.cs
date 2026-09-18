@@ -112,27 +112,40 @@ namespace core.LinkLeaf
 
         public static int RelayPublicText(String sender, String customName, String text, IClient notify = null)
         {
+            if (String.IsNullOrEmpty(sender) || text == null)
+                return 0;
+
+            customName = customName ?? String.Empty;
+
             int sent = 0;
 
-            bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
-                ServerCore.Linker.LoginPhase == LinkLogin.Ready;
-
-            // (A) through the link: leaf -> hub (the hub then forwards to its local users
-            // and to sibling leaves). This is the original, working mechanism.
-            if (link_ready)
+            try
             {
-                ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text));
-                sent++;
+                bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
+                    ServerCore.Linker.LoginPhase == LinkLogin.Ready;
+
+                // (A) through the link: leaf -> hub (the hub then forwards to its local
+                // users and to sibling leaves). This is the original mechanism.
+                if (link_ready)
+                {
+                    ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text));
+                    sent++;
+                }
+
+                // (B) hub -> each connected leaf directly (does not use the hub self-link).
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text));
+                    sent++;
+                }
             }
-
-            // (B) hub -> each connected leaf directly (does not use the hub self-link).
-            foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+            catch (Exception e)
             {
-                if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
-                    continue;
-
-                leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text));
-                sent++;
+                // Never let a bad relay drop the local message / the link.
+                ServerLog.ChannelError("link", "relay text failed (ignored)", e);
             }
 
             ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName +
