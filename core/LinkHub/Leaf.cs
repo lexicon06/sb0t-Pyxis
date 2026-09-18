@@ -41,6 +41,7 @@ namespace core.LinkHub
         public ushort Port { get; set; }
         public ushort Protocol { get; set; }
         public List<LinkUser> Users { get; set; }
+        public bool Local { get; set; }
 
         private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();

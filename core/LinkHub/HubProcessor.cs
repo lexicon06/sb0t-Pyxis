@@ -1075,6 +1075,9 @@ namespace core.LinkHub
             leaf.Protocol = packet;
             leaf.Port = packet;
 
+            // The hub's own loopback (self) link: never relay back into the same server.
+            leaf.Local = System.Net.IPAddress.IsLoopback(leaf.ExternalIP) && leaf.Port == Settings.Port;
+
             Leaf existing = LeafPool.Leaves.Find(x => x.ExternalIP.Equals(leaf.ExternalIP) && x.Port == leaf.Port && x.Ident != leaf.Ident);
 
             if (existing != null)
