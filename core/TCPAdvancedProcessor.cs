@@ -124,6 +124,11 @@ namespace core
 
                     UserPool.AUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                         x => x.LoggedIn && x.Vroom == client.Vroom && x.CustomClient && !x.Quarantined && x.ID != client.ID && !x.IgnoreList.Contains(client.Name));
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Scribble(client.Name, img, height),
+                                x => x.Vroom == client.Vroom);
                 }
 
                 client.ScribbleRoomObject.Reset();
@@ -153,6 +158,11 @@ namespace core
 
                         UserPool.AUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                             x => x.LoggedIn && x.Vroom == client.Vroom && x.CustomClient && !x.Quarantined && x.ID != client.ID && !x.IgnoreList.Contains(client.Name));
+
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                                leaf.Users.ForEachWhere(x => x.Scribble(client.Name, img, height),
+                                    x => x.Vroom == client.Vroom);
                     }
 
                     client.ScribbleRoomObject.Reset();

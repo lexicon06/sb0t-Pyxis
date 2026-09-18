@@ -392,6 +392,9 @@ namespace linktest
             Check(CountOccurrences(leafWebLog, "hubweb-msg") == 1, "leaf WEB: 1 sola copia del texto del hub (sin duplicar)");
             Check(CountOccurrences(hubWebLog, "leafweb-msg") == 1, "hub WEB: 1 sola copia del texto del leaf (sin duplicar)");
 
+            Check(leafWebLog.Contains("SCRIBBLE_HEAD:6,"), "leaf WEB recibe SCRIBBLE de hub WEB (link)");
+            Check(hubWebLog.Contains("SCRIBBLE_HEAD:7,"), "hub WEB recibe SCRIBBLE de leaf WEB (link)");
+
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
             return failed == 0 ? 0 : 1;
@@ -623,7 +626,8 @@ namespace linktest
             {
                 hubWeb.SendPublic("hubweb-msg " + new String('x', 260));
                 hubWeb.SendAudio("hubweb", AudioBytes(0x41));
-                Console.WriteLine("[hub] web public + audio sent");
+                hubWeb.SendScribble("hubweb", WebTestClient.MakePng());
+                Console.WriteLine("[hub] web public + audio + scribble sent");
             }
 
             SendExtensionAudio(ServerCore.Linker, "hub");
@@ -693,7 +697,8 @@ namespace linktest
             {
                 leafWeb.SendPublic("leafweb-msg " + new String('y', 260));
                 leafWeb.SendAudio("leafweb", AudioBytes(0x42));
-                Console.WriteLine("[leaf] web public + audio sent");
+                leafWeb.SendScribble("leafweb", WebTestClient.MakePng());
+                Console.WriteLine("[leaf] web public + audio + scribble sent");
             }
 
             SendExtensionAudio(ServerCore.Linker, "leaf");
@@ -804,6 +809,28 @@ namespace linktest
         {
             String b64 = Convert.ToBase64String(data);
             this.SendText("AUDIO:" + sender.Length + "," + b64.Length + ":" + sender + b64);
+        }
+
+        public static String MakePng()
+        {
+            using (SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32> img =
+                new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(20, 20))
+            {
+                for (int y = 0; y < 20; y++)
+                    for (int x = 0; x < 20; x++)
+                        img[x, y] = new SixLabors.ImageSharp.PixelFormats.Rgba32(200, 30, 30);
+
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+                    return Convert.ToBase64String(ms.ToArray());
+                }
+            }
+        }
+
+        public void SendScribble(String sender, String pngB64)
+        {
+            this.SendText("SCRIBBLE:" + sender.Length + "," + pngB64.Length + ":" + sender + pngB64);
         }
 
         private void SendText(String payload)
