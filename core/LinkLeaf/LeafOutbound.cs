@@ -62,8 +62,18 @@ namespace core.LinkLeaf
         // customName+text when the sender has a custom name, otherwise the server
         // line "\x03""01"name"> ""\x03""12"text. Delivered as MSG_CHAT_SERVER_NOSUCH
         // (print virtual) on the other side, so it always renders.
-        private static bool HasRemoteLeaf()
+        // Role decided by configuration (link_mode), not by LeafPool, so a leaf never
+        // accidentally takes the hub path (which would stop leaf -> hub from working).
+        private static bool IsHub()
         {
+            int m = Settings.Get<int>("link_mode");
+
+            if (m == (int)LinkHub.LinkMode.Hub)
+                return true;
+
+            if (m == (int)LinkHub.LinkMode.Leaf)
+                return false;
+
             foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
                 if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
                     return true;
@@ -75,7 +85,7 @@ namespace core.LinkLeaf
         // whole room. The hub delivers straight to each leaf; a leaf uses the link.
         public static void RelayCustomDataAll(ushort vroom, String sender, String ident, byte[] data)
         {
-            if (HasRemoteLeaf())
+            if (IsHub())
             {
                 foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
                 {
@@ -91,7 +101,7 @@ namespace core.LinkLeaf
 
         public static void RelayCustomDataTo(String target, String sender, String ident, byte[] data)
         {
-            if (HasRemoteLeaf())
+            if (IsHub())
             {
                 foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
                 {
@@ -120,14 +130,7 @@ namespace core.LinkLeaf
 
             int sent = 0;
 
-            bool is_hub = false;
-
-            foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
-                if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
-                {
-                    is_hub = true;
-                    break;
-                }
+            bool is_hub = IsHub();
 
             if (is_hub)
             {
@@ -158,6 +161,34 @@ namespace core.LinkLeaf
                             }
                         });
             }
+
+            // If the primary path delivered to nobody, try the other one so a
+            // misconfigured role never blocks the relay.
+            if (sent == 0)
+                if (is_hub)
+                {
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                        foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEach(x =>
+                            {
+                                if (x.Name != sender)
+                                {
+                                    x.Print(line);
+                                    sent++;
+                                }
+                            });
+                }
+                else
+                {
+                    foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                    {
+                        if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                            continue;
+
+                        leaf.SendPacket(LinkHub.HubOutbound.HubPrintAll(leaf, line));
+                        sent++;
+                    }
+                }
 
             // Last resort: broadcast through the link if nothing was delivered.
             if (sent == 0 && ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
@@ -547,14 +578,7 @@ namespace core.LinkLeaf
             try { data = Convert.FromBase64String(base64); }
             catch { return; }
 
-            bool is_hub = false;
-
-            foreach (LinkHub.Leaf l in LinkHub.LeafPool.Leaves)
-                if (!l.Local && l.LoginPhase == LinkHub.LinkLogin.Ready)
-                {
-                    is_hub = true;
-                    break;
-                }
+            bool is_hub = IsHub();
 
             if (!is_hub && !(ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready))
                 return;
