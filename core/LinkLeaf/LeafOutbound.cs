@@ -112,44 +112,28 @@ namespace core.LinkLeaf
 
         public static int RelayPublicText(String sender, String customName, String text, IClient notify = null)
         {
-            String line = String.IsNullOrEmpty(customName)
-                ? "\u0003" + "01" + sender + "> " + "\u0003" + "12" + text
-                : customName + text;
-
             int sent = 0;
 
             bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
                 ServerCore.Linker.LoginPhase == LinkLogin.Ready;
 
-            // (A) per-user print through the link (exactly the community script).
+            // (A) through the link: leaf -> hub (the hub then forwards to its local users
+            // and to sibling leaves). This is the original, working mechanism.
             if (link_ready)
-                foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                    leaf.Users.ForEach(x =>
-                    {
-                        if (x.Name != sender)
-                        {
-                            x.Print(line);
-                            sent++;
-                        }
-                    });
+            {
+                ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text));
+                sent++;
+            }
 
-            // (B) hub: print straight to each connected leaf (does not use the self-link).
+            // (B) hub -> each connected leaf directly (does not use the hub self-link).
             foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
             {
                 if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
                     continue;
 
-                leaf.SendPacket(LinkHub.HubOutbound.HubPrintAll(leaf, line));
+                leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text));
                 sent++;
             }
-
-            // (C) broadcast through the link as well (sibling leaves / hub local users).
-            if (link_ready)
-                foreach (Leaf leaf in ServerCore.Linker.Leaves)
-                {
-                    ServerCore.Linker.SendPacket(LeafPrintAll(ServerCore.Linker, leaf.Ident, line));
-                    sent++;
-                }
 
             ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName +
                 "' len=" + text.Length + " -> " + sent);

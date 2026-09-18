@@ -508,6 +508,10 @@ namespace core.LinkLeaf
 
             bool hasCustom = !String.IsNullOrEmpty(customName);
 
+            // Dedup: the relay may deliver the same message through several paths.
+            if (TextSeen("text|" + sender + "|" + customName + "|" + text))
+                return;
+
             ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
             ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ")");
 
@@ -516,7 +520,7 @@ namespace core.LinkLeaf
                 if (hasCustom && !x.BlockCustomNames)
                     x.SendPacket(TCPOutbound.NoSuch(x, customName + text));
                 else
-                    x.SendPacket(TCPOutbound.NoSuch(x, LinkedLine(sender, null, text)));
+                    x.SendPacket(TCPOutbound.Public(x, sender, text));
             }, x => x.LoggedIn && !x.Quarantined);
 
             UserPool.WUsers.ForEachWhere(x =>
@@ -524,7 +528,7 @@ namespace core.LinkLeaf
                 if (hasCustom)
                     x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
                 else
-                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, LinkedLine(sender, null, text)));
+                    x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text));
             }, x => x.LoggedIn && !x.Quarantined);
         }
 
@@ -547,9 +551,8 @@ namespace core.LinkLeaf
         private static readonly Dictionary<String, ulong> text_dedup = new Dictionary<String, ulong>();
         private static readonly object text_dedup_lock = new object();
 
-        private static bool TextSeen(String user, String text)
+        private static bool TextSeen(String key)
         {
-            String key = user + "|" + text;
             ulong now = core.Time.Now;
 
             lock (text_dedup_lock)
@@ -583,13 +586,13 @@ namespace core.LinkLeaf
 
             UserPool.AUsers.ForEachWhere(x =>
             {
-                if (!TextSeen(x.Name, text))
+                if (!TextSeen(x.Name + "|" + text))
                     x.SendPacket(TCPOutbound.NoSuch(x, text));
             }, x => x.LoggedIn && !x.Quarantined);
 
             UserPool.WUsers.ForEachWhere(x =>
             {
-                if (!TextSeen(x.Name, text))
+                if (!TextSeen(x.Name + "|" + text))
                     x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, text));
             }, x => x.LoggedIn && !x.Quarantined);
         }
@@ -942,7 +945,7 @@ namespace core.LinkLeaf
                         text = packet.ReadString(link);
                         ServerLog.Channel("link", "recv print -> " + _name + " (" + text.Length + " chars)");
 
-                        if (!TextSeen(_name, text))
+                        if (!TextSeen(_name + "|" + text))
                             client.IUser.Print(text);
 
                         break;

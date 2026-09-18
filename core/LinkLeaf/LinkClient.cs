@@ -382,7 +382,7 @@ namespace core.LinkLeaf
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
             this.Sock.NoDelay = true;
-            ServerLog.Channel("link", "hub mode: connecting to self on port " + Settings.Port + " [relay v11]");
+            ServerLog.Channel("link", "hub mode: connecting to self on port " + Settings.Port + " [relay v12]");
 
             try
             {
@@ -433,7 +433,7 @@ namespace core.LinkLeaf
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
             this.Sock.NoDelay = true;
-            ServerLog.Channel("link", "connecting to hub '" + obj.Name + "' at " + obj.IP + ":" + obj.Port + " [relay v11]");
+            ServerLog.Channel("link", "connecting to hub '" + obj.Name + "' at " + obj.IP + ":" + obj.Port + " [relay v12]");
 
             try
             {
