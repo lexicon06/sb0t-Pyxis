@@ -542,15 +542,56 @@ namespace core.LinkLeaf
                 x => x.LoggedIn && !x.Quarantined);
         }
 
+        // Collapses duplicate deliveries of the same text for the same user: the relay
+        // sends through several paths to be robust, this makes each user see it once.
+        private static readonly Dictionary<String, ulong> text_dedup = new Dictionary<String, ulong>();
+        private static readonly object text_dedup_lock = new object();
+
+        private static bool TextSeen(String user, String text)
+        {
+            String key = user + "|" + text;
+            ulong now = core.Time.Now;
+
+            lock (text_dedup_lock)
+            {
+                ulong last;
+
+                if (text_dedup.TryGetValue(key, out last) && (now - last) < 2000)
+                    return true;
+
+                text_dedup[key] = now;
+
+                if (text_dedup.Count > 500)
+                {
+                    List<String> old = new List<String>();
+
+                    foreach (KeyValuePair<String, ulong> kv in text_dedup)
+                        if ((now - kv.Value) > 5000)
+                            old.Add(kv.Key);
+
+                    foreach (String k in old)
+                        text_dedup.Remove(k);
+                }
+
+                return false;
+            }
+        }
+
         private static void HubPrintAll(LinkClient link, TCPPacketReader packet)
         {
             String text = packet.ReadString(link);
 
-            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.NoSuch(x, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            UserPool.AUsers.ForEachWhere(x =>
+            {
+                if (!TextSeen(x.Name, text))
+                    x.SendPacket(TCPOutbound.NoSuch(x, text));
+            }, x => x.LoggedIn && !x.Quarantined);
 
-            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            UserPool.WUsers.ForEachWhere(x =>
+            {
+                if (!TextSeen(x.Name, text))
+                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, text));
+            }, x => x.LoggedIn && !x.Quarantined);
         }
 
         private static void HubPrintVroom(LinkClient link, TCPPacketReader packet)
@@ -900,7 +941,10 @@ namespace core.LinkLeaf
                     case "print":
                         text = packet.ReadString(link);
                         ServerLog.Channel("link", "recv print -> " + _name + " (" + text.Length + " chars)");
-                        client.IUser.Print(text);
+
+                        if (!TextSeen(_name, text))
+                            client.IUser.Print(text);
+
                         break;
 
                     case "muzzle":

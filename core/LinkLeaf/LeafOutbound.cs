@@ -118,10 +118,11 @@ namespace core.LinkLeaf
 
             int sent = 0;
 
-            // Exactly the community script: for every linked user, send a print.
-            // This is the mechanism that already worked in BOTH directions, so there
-            // is no role detection or alternate path here anymore.
-            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+            bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
+                ServerCore.Linker.LoginPhase == LinkLogin.Ready;
+
+            // (A) per-user print through the link (exactly the community script).
+            if (link_ready)
                 foreach (Leaf leaf in ServerCore.Linker.Leaves)
                     leaf.Users.ForEach(x =>
                     {
@@ -131,6 +132,24 @@ namespace core.LinkLeaf
                             sent++;
                         }
                     });
+
+            // (B) hub: print straight to each connected leaf (does not use the self-link).
+            foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+            {
+                if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                    continue;
+
+                leaf.SendPacket(LinkHub.HubOutbound.HubPrintAll(leaf, line));
+                sent++;
+            }
+
+            // (C) broadcast through the link as well (sibling leaves / hub local users).
+            if (link_ready)
+                foreach (Leaf leaf in ServerCore.Linker.Leaves)
+                {
+                    ServerCore.Linker.SendPacket(LeafPrintAll(ServerCore.Linker, leaf.Ident, line));
+                    sent++;
+                }
 
             ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName +
                 "' len=" + text.Length + " -> " + sent);

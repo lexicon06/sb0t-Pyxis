@@ -386,6 +386,9 @@ namespace linktest
             Check(hubWebLog.Contains("AUDIO_HEAD:7,1:leafweb4"), "hub WEB recibe AUDIO_HEAD count=4 (stream)");
             Check(CountOccurrences(hubWebLog, "AUDIO_BLOCK:") >= 4, "hub WEB recibe 4+ AUDIO_BLOCK (chunks)");
 
+            Check(CountOccurrences(leafWebLog, "hubweb-msg") == 1, "leaf WEB: 1 sola copia del texto del hub (sin duplicar)");
+            Check(CountOccurrences(hubWebLog, "leafweb-msg") == 1, "hub WEB: 1 sola copia del texto del leaf (sin duplicar)");
+
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
             return failed == 0 ? 0 : 1;
