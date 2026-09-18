@@ -417,7 +417,24 @@ namespace core.ib0t
                     if (name == Settings.Get<String>("bot")) return;
                     ib0tClient target = UserPool.WUsers.Find(x => x.Name == name && x.LoggedIn && (x.IsInbizierMobile || x.IsInbizierWeb));
                     if (target == null)
-                        client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    {
+                        // Maybe the target is in another linked room: relay it privately.
+                        LinkLeaf.LinkUser linked = null;
+
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            {
+                                linked = leaf.Users.Find(x => x.Name == name && x.Vroom == client.Vroom);
+
+                                if (linked != null)
+                                    break;
+                            }
+
+                        if (linked != null)
+                            linked.PmAudio(client.Name, text);
+                        else
+                            client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    }
                     else if (target.IgnoreList.Contains(client.Name) || client.Muzzled)
                         client.QueuePacket(WebOutbound.IgnoringTo(client, name));
                     else
@@ -458,6 +475,10 @@ namespace core.ib0t
                     {
                         t.QueuePacket(WebOutbound.BuzzTo(t, client.Name));
                     }
+                    else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Nudge(client.Name),
+                                x => x.Name == target && x.Vroom == client.Vroom);
                         
                 }
                 catch (Exception e)

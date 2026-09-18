@@ -395,6 +395,11 @@ namespace linktest
             Check(leafWebLog.Contains("SCRIBBLE_HEAD:6,"), "leaf WEB recibe SCRIBBLE de hub WEB (link)");
             Check(hubWebLog.Contains("SCRIBBLE_HEAD:7,"), "hub WEB recibe SCRIBBLE de leaf WEB (link)");
 
+            Check(leafWebLog.Contains("BUZZ:6:hubweb"), "leaf WEB recibe BUZZ del hub (link)");
+            Check(hubWebLog.Contains("BUZZ:7:leafweb"), "hub WEB recibe BUZZ del leaf (link)");
+            Check(leafWebLog.Contains("PM_AUDIO_HEAD:6,"), "leaf WEB recibe PM AUDIO del hub (link)");
+            Check(hubWebLog.Contains("PM_AUDIO_HEAD:7,"), "hub WEB recibe PM AUDIO del leaf (link)");
+
             Console.WriteLine();
             Console.WriteLine(failed == 0 ? "E2E OK" : "E2E FAILED");
             return failed == 0 ? 0 : 1;
@@ -562,6 +567,7 @@ namespace linktest
             core.Settings.Set("enabled", true, "web");
             core.Settings.Set("audios", true, "settings");
             core.Settings.Set("scribbles", true, "settings");
+            core.Settings.Set("buzzes", true, "settings");
             core.Settings.Set("link_reconnect", false);
             core.Settings.Set("link_admin", false);
         }
@@ -627,7 +633,9 @@ namespace linktest
                 hubWeb.SendPublic("hubweb-msg " + new String('x', 260));
                 hubWeb.SendAudio("hubweb", AudioBytes(0x41));
                 hubWeb.SendScribble("hubweb", WebTestClient.MakePng());
-                Console.WriteLine("[hub] web public + audio + scribble sent");
+                hubWeb.SendBuzz("leafweb");
+                hubWeb.SendPmAudio("leafweb", AudioBytes(0x51));
+                Console.WriteLine("[hub] web public + audio + scribble + buzz + pmaudio sent");
             }
 
             SendExtensionAudio(ServerCore.Linker, "hub");
@@ -698,7 +706,9 @@ namespace linktest
                 leafWeb.SendPublic("leafweb-msg " + new String('y', 260));
                 leafWeb.SendAudio("leafweb", AudioBytes(0x42));
                 leafWeb.SendScribble("leafweb", WebTestClient.MakePng());
-                Console.WriteLine("[leaf] web public + audio + scribble sent");
+                leafWeb.SendBuzz("hubweb");
+                leafWeb.SendPmAudio("hubweb", AudioBytes(0x52));
+                Console.WriteLine("[leaf] web public + audio + scribble + buzz + pmaudio sent");
             }
 
             SendExtensionAudio(ServerCore.Linker, "leaf");
@@ -831,6 +841,20 @@ namespace linktest
         public void SendScribble(String sender, String pngB64)
         {
             this.SendText("SCRIBBLE:" + sender.Length + "," + pngB64.Length + ":" + sender + pngB64);
+        }
+
+        public void SendBuzz(String target)
+        {
+            this.SendText("BUZZ:" + target.Length + ":" + target);
+        }
+
+        public void SendPmAudio(String target, byte[] data)
+        {
+            String b64 = Convert.ToBase64String(data);
+            String id = "pma" + new Random().Next(100000);
+
+            this.SendText("PM_CUSTOM_DATA_HEAD:" + target.Length + "," + id.Length + ",1:" + target + id + "1");
+            this.SendText("PM_CUSTOM_DATA_BODY:5," + id.Length + "," + b64.Length + ":AUDIO" + id + b64);
         }
 
         private void SendText(String payload)

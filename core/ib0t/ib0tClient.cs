@@ -278,7 +278,13 @@ namespace core.ib0t
                 this.QueuePacket(WebOutbound.PmAudioBlock(this, sender, base64.Substring(off, len)));
             }
         }
-        public void Nudge(String sender) { }
+        public void Nudge(String sender)
+        {
+            if (!this.LoggedIn || this.Quarantined)
+                return;
+
+            this.QueuePacket(WebOutbound.BuzzTo(this, sender));
+        }
 
         private bool _muzzled;
         public bool Muzzled
