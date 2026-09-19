@@ -288,7 +288,7 @@ namespace core.ib0t
             {
                 data = Scale(img);
             }
-            catch { return; }
+            catch (Exception ex) { ServerLog.ChannelError("link", "web scribble scale failed", ex); return; }
             int height = 300;
             if (Settings.Get<bool>("scribbles", "settings"))
             {
@@ -301,6 +301,11 @@ namespace core.ib0t
                                 x => x.LoggedIn && !x.Quarantined && x.Vroom == client.Vroom);
                     UserPool.WUsers.ForEachWhere(x => x.Scribble2(sender, text, height),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Scribble(sender, data.Item1, data.Item3),
+                                x => x.Vroom == client.Vroom);
                 }
                 catch (Exception e)
                 {
@@ -360,6 +365,11 @@ namespace core.ib0t
                 {
                     UserPool.WUsers.ForEachWhere(x => x.Scribble2(sender, text),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Scribble2(sender, text, 300),
+                                x => x.Vroom == client.Vroom);
                 }
                 catch (Exception e)
                 {
@@ -407,7 +417,24 @@ namespace core.ib0t
                     if (name == Settings.Get<String>("bot")) return;
                     ib0tClient target = UserPool.WUsers.Find(x => x.Name == name && x.LoggedIn && (x.IsInbizierMobile || x.IsInbizierWeb));
                     if (target == null)
-                        client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    {
+                        // Maybe the target is in another linked room: relay it privately.
+                        LinkLeaf.LinkUser linked = null;
+
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            {
+                                linked = leaf.Users.Find(x => x.Name == name && x.Vroom == client.Vroom);
+
+                                if (linked != null)
+                                    break;
+                            }
+
+                        if (linked != null)
+                            linked.PmAudio(client.Name, text);
+                        else
+                            client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    }
                     else if (target.IgnoreList.Contains(client.Name) || client.Muzzled)
                         client.QueuePacket(WebOutbound.IgnoringTo(client, name));
                     else
@@ -448,6 +475,10 @@ namespace core.ib0t
                     {
                         t.QueuePacket(WebOutbound.BuzzTo(t, client.Name));
                     }
+                    else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Nudge(client.Name),
+                                x => x.Name == target && x.Vroom == client.Vroom);
                         
                 }
                 catch (Exception e)

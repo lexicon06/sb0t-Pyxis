@@ -173,6 +173,10 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO:
                     HubAudio(link, packet);
                     break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_PM_AUDIO:
+                    HubPmAudio(link, packet);
+                    break;
             }
         }
 
@@ -338,7 +342,58 @@ namespace core.LinkLeaf
             }
         }
 
+        private static Dictionary<String, AudioChunks> pm_audio_chunks = new Dictionary<String, AudioChunks>();
 
+        private static void HubPmAudio(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                String target = packet.ReadString(link);
+                String sender = packet.ReadString(link);
+                ushort total = packet;
+                ushort index = packet;
+                String chunk = packet.ReadString(link);
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = target + "\u0000" + sender;
+                AudioChunks buf;
+
+                if (!pm_audio_chunks.TryGetValue(key, out buf) || buf.Total != total)
+                {
+                    buf = new AudioChunks { Total = total, Parts = new String[total], Received = 0 };
+                    pm_audio_chunks[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                pm_audio_chunks.Remove(key);
+
+                StringBuilder sb = new StringBuilder();
+
+                foreach (String part in buf.Parts)
+                    sb.Append(part);
+
+                ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (ic != null)
+                    ic.PmAudio(sender, sb.ToString());
+
+                ServerLog.Channel("link", "recv-pmaudio from " + sender + " to " + target + " (" + sb.Length + " chars)");
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm audio relay failed (ignored)", e);
+            }
+        }
 
         private static void HubNudge(LinkClient link, TCPPacketReader packet)
         {
@@ -348,6 +403,13 @@ namespace core.LinkLeaf
 
             if (ac != null)
                 ac.Nudge(sender);
+            else
+            {
+                ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (ic != null)
+                    ic.Nudge(sender);
+            }
         }
 
         private static void HubPublicToUser(LinkClient link, TCPPacketReader packet)

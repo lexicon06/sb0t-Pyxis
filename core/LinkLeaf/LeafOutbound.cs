@@ -479,6 +479,21 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
+        public static byte[] LeafPmAudio(LinkClient x, LinkUser target, String sender, ushort total, ushort index, String chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt32(target.Link.Ident);
+            packet.WriteString(x, target.Name);
+            packet.WriteString(x, sender);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteString(x, chunk, false);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PM_AUDIO);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
 
         public static byte[] LeafAdmin(LinkClient x, IClient admin, String command, IClient target, String args)
         {
