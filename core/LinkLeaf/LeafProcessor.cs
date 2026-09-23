@@ -461,6 +461,10 @@ namespace core.LinkLeaf
             String sender = packet.ReadString(link);
             String customName = packet.ReadString(link);
             String text = packet.ReadString(link);
+            ushort vroom = 0;
+
+            if (packet.Remaining >= 2)
+                vroom = packet;
 
             bool hasCustom = !String.IsNullOrEmpty(customName);
 
@@ -469,7 +473,7 @@ namespace core.LinkLeaf
                 return;
 
             ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
-            ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ")");
+            ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ") vroom=" + vroom);
 
             UserPool.AUsers.ForEachWhere(x =>
             {
@@ -477,7 +481,7 @@ namespace core.LinkLeaf
                     x.SendPacket(TCPOutbound.NoSuch(x, customName + text));
                 else
                     x.SendPacket(TCPOutbound.Public(x, sender, text));
-            }, x => x.LoggedIn && !x.Quarantined);
+            }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
 
             UserPool.WUsers.ForEachWhere(x =>
             {
@@ -485,21 +489,25 @@ namespace core.LinkLeaf
                     x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
                 else
                     x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text));
-            }, x => x.LoggedIn && !x.Quarantined);
+            }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
         }
 
         private static void HubEmoteToLeaf(LinkClient link, TCPPacketReader packet)
         {
             String sender = packet.ReadString(link);
             String text = packet.ReadString(link);
+            ushort vroom = 0;
+
+            if (packet.Remaining >= 2)
+                vroom = packet;
 
             ChatLog.WriteLine("link-recv: " + sender + " " + text);
 
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+                x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
 
             UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+                x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
         }
 
         // Collapses duplicate deliveries of the same text for the same user: the relay

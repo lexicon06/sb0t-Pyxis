@@ -370,7 +370,7 @@ namespace core.LinkHub
             {
                 String sender = packet.ReadString(leaf);
                 String text = packet.ReadString(leaf);
-                l.SendPacket(HubOutbound.HubPublicToLeaf(l, sender, String.Empty, text));
+                l.SendPacket(HubOutbound.HubPublicToLeaf(l, sender, String.Empty, text, 0));
             }
         }
 
@@ -390,7 +390,7 @@ namespace core.LinkHub
             {
                 String sender = packet.ReadString(leaf);
                 String text = packet.ReadString(leaf);
-                l.SendPacket(HubOutbound.HubEmoteToLeaf(l, sender, text));
+                l.SendPacket(HubOutbound.HubEmoteToLeaf(l, sender, text, 0));
             }
         }
 
@@ -747,8 +747,12 @@ namespace core.LinkHub
 
             String name = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
+            ushort vroom = 0;
 
-            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteToLeaf(x, name, text)),
+            if (packet.Remaining >= 2)
+                vroom = packet;
+
+            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteToLeaf(x, name, text, vroom)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 
@@ -764,12 +768,16 @@ namespace core.LinkHub
             String name = packet.ReadString(leaf);
             String customName = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
+            ushort vroom = 0;
+
+            if (packet.Remaining >= 2)
+                vroom = packet;
 
             int forwarded = 0;
 
             LeafPool.Leaves.ForEachWhere(x =>
             {
-                x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text));
+                x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text, vroom));
                 forwarded++;
             }, x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
 

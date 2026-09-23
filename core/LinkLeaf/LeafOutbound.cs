@@ -117,6 +117,9 @@ namespace core.LinkLeaf
 
             customName = customName ?? String.Empty;
 
+            // vroom del emisor: el relay respeta la privacidad de las vrooms.
+            ushort vroom = notify != null ? notify.Vroom : (ushort)0;
+
             int sent = 0;
 
             try
@@ -128,7 +131,7 @@ namespace core.LinkLeaf
                 // users and to sibling leaves). This is the original mechanism.
                 if (link_ready)
                 {
-                    ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text));
+                    ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text, vroom));
                     sent++;
                 }
 
@@ -138,7 +141,7 @@ namespace core.LinkLeaf
                     if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
                         continue;
 
-                    leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text));
+                    leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text, vroom));
                     sent++;
                 }
             }
@@ -509,23 +512,25 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafPublicText(LinkClient x, String name, String customName, String text)
+        public static byte[] LeafPublicText(LinkClient x, String name, String customName, String text, ushort vroom)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
             packet.WriteString(x, customName ?? String.Empty, false);
             packet.WriteString(x, text, false);
+            packet.WriteUInt16(vroom);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PUBLIC_TEXT);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafEmoteText(LinkClient x, String name, String text)
+        public static byte[] LeafEmoteText(LinkClient x, String name, String text, ushort vroom)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
             packet.WriteString(x, text, false);
+            packet.WriteUInt16(vroom);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_EMOTE_TEXT);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);

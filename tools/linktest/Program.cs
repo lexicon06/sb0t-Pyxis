@@ -377,6 +377,7 @@ namespace linktest
             Check(hubWebLog.Contains("leafweb-msg"), "hub WEB recibe texto de leaf WEB (link)");
             Check(leafWebLog.Contains("hola-desde-hub"), "leaf WEB recibe texto del HUB no-web (link)");
             Check(hubWebLog.Contains("hola-desde-leaf"), "hub WEB recibe texto del LEAF no-web (link)");
+            Check(!leafWebLog.Contains("msg-vroom5"), "leaf WEB NO recibe texto de vroom 5 (privacidad vroom)");
 
             Check(leafWebLog.Contains("AUDIO_HEAD:6,"), "leaf WEB recibe AUDIO de hub WEB (link)");
             Check(hubWebLog.Contains("AUDIO_HEAD:7,"), "hub WEB recibe AUDIO de leaf WEB (link)");
@@ -620,9 +621,10 @@ namespace linktest
                 hubWeb.Login("hubweb");
 
             Console.WriteLine("[hub] sending public text as hubuser (sin custom) y hubuser2 (con custom)");
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub"));
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser2", "@HUB@", "msg-custom-hub"));
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafEmoteText(ServerCore.Linker, "hubemoter", "emote-hub"));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub", 0));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser2", "@HUB@", "msg-custom-hub", 0));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafEmoteText(ServerCore.Linker, "hubemoter", "emote-hub", 0));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubvroom", "", "msg-vroom5", 5));
 
             SendMedia(ServerCore.Linker, "hub");
 
@@ -693,9 +695,9 @@ namespace linktest
                 leafWeb.Login("leafweb");
 
             Console.WriteLine("[leaf] sending public text as leafuser (sin custom) y leafuser2 (con custom)");
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "", "hola-desde-leaf"));
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser2", "@LEAF@", "msg-custom-leaf"));
-            ServerCore.Linker.SendPacket(LeafOutbound.LeafEmoteText(ServerCore.Linker, "leafemoter", "emote-leaf"));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser", "", "hola-desde-leaf", 0));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "leafuser2", "@LEAF@", "msg-custom-leaf", 0));
+            ServerCore.Linker.SendPacket(LeafOutbound.LeafEmoteText(ServerCore.Linker, "leafemoter", "emote-leaf", 0));
 
             SendMedia(ServerCore.Linker, "leaf");
 

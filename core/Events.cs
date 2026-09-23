@@ -290,9 +290,28 @@ namespace core
             });
         }
 
+        // Cualquier actividad del usuario lo saca del estado "ausente", sin importar
+        // si despues un script/filtro consume el texto (si eso pasaba, no se detectaba
+        // el regreso y habia que escribir /me).
+        private static void ClearIdle(IClient client, String text)
+        {
+            if (client == null || !client.Idled)
+                return;
+
+            // No des-idlear cuando el propio texto es el disparador de idle.
+            if (text != null && text.StartsWith("idles"))
+                return;
+
+            uint seconds_away = (uint)((Time.Now - client.IdleStart) / 1000);
+            IdleManager.Remove(client);
+            Unidled(client, seconds_away);
+        }
+
         public static String TextSending(IClient client, String text)
         {
             String result = text;
+
+            ClearIdle(client, result);
 
             // Link relay, fired at the exact same point the community onTextBefore
             // script ran, so hub <-> leaf works for every local message the same way
@@ -356,6 +375,8 @@ namespace core
         public static String EmoteSending(IClient client, String text)
         {
             String result = text;
+
+            ClearIdle(client, result);
 
             if (DefaultCommands)
                 result = cmds.EmoteSending(client != null ? client.IUser : null, result);
@@ -489,7 +510,7 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("sb0t link relay v20 | isLinked=" +
+                client.Print("sb0t link relay v22 | isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " leaves=" + leaves + " linkedUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);
@@ -505,7 +526,7 @@ namespace core
                     foreach (var l in ServerCore.Linker.Leaves)
                         linked += l.Users.Count;
 
-                client.Print("linktest v20: isLinked=" +
+                client.Print("linktest v22: isLinked=" +
                     (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
                     " linkLeaves=" + leaves + " linkUsers=" + linked +
                     " leafPool=" + LinkHub.LeafPool.Leaves.Count);
