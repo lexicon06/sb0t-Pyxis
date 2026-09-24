@@ -976,14 +976,16 @@ namespace core.LinkHub
 
             LinkUser user = leaf.Users.Find(x => x.Name == name);
 
-            if (user != null)
-                user.Avatar = avatar;
-            else
+            if (user == null)
             {
                 user = new LinkUser(leaf.Ident);
                 user.Name = name;
-                user.Avatar = avatar;
             }
+
+            // El avatar que llega por el link: si es un JPEG Ares chico se usa tal
+            // cual; si es un blob grande (gif de un cliente web) se guarda crudo y
+            // se reescala en el extremo que lo entregue.
+            user.Avatar = avatar;
 
             if (leaf.LoginPhase == LinkLogin.Ready)
                 LeafPool.Leaves.ForEachWhere(x => HubOutbound.SendAvatar(x, leaf.Ident, user),

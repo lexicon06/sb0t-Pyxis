@@ -1113,23 +1113,39 @@ namespace core.LinkLeaf
 
             ServerLog.Channel("link", "recv-avatar " + name + " (" + avatar.Length + " bytes)");
 
-            // El avatar de otra sala puede venir en grande (gif full): para Ares lo
-            // recortamos a 48x48 JPEG y guardamos el original solo para web/mobile.
-            byte[] ares = ImageUtils.AvatarAres(avatar);
+            // Avatar 48x48 para Ares. El original (posible gif animado) se conserva
+            // aparte para los clientes web/mobile.
+            byte[] ares = avatar;
 
-            if (ares == null || ares.Length < 10 || ares.Length >= 4064)
+            if (ares == null || ares.Length == 0 || ares.Length >= 4064 || !IsJpeg(ares))
+            {
+                ares = ImageUtils.AvatarAres(avatar);
+
+                if (ares == null)
+                    return;
+            }
+
+            if (ares.Length < 10 || ares.Length >= 4064)
                 return;
 
             if (Events.AvatarReceived(user))
             {
-                user.SetAvatar(ares);
+                user.SetAvatar(ares, avatar);
+
+                ServerLog.Channel("link", "avatar-set " + name + " (" + ares.Length + " bytes, jpeg=" + IsJpeg(ares) + ")");
 
                 UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, user)),
                     x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, user.Name, user.Avatar)),
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, user.Name, user.FullAvatar)),
                     x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
             }
+        }
+
+        private static bool IsJpeg(byte[] data)
+        {
+            return data != null && data.Length >= 3 &&
+                data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF;
         }
 
         private static void HubPersonalMessage(LinkClient link, TCPPacketReader packet)

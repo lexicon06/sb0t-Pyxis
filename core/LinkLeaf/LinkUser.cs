@@ -187,6 +187,13 @@ namespace core.LinkLeaf
 
 
         public void SetAvatar(byte[] data) { this._avatar = data; this._fullavatar = data; }
+
+        // Avatar 48x48 para clientes Ares + original (posible gif animado) para web/mobile.
+        public void SetAvatar(byte[] ares, byte[] full)
+        {
+            this._avatar = ares;
+            this._fullavatar = (full == null || full.Length == 0) ? ares : full;
+        }
         private byte[] _avatar;
         private byte[] _fullavatar;
         public byte[] Avatar

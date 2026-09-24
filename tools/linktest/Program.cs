@@ -358,6 +358,9 @@ namespace linktest
 
             Check(leafLink.Contains("recv-audio from hubaudio"), "leaf recibe AUDIO del hub");
             Check(leafLink.Contains("recv-avatar hubavatar"), "leaf recibe AVATAR del hub");
+            Check(leafLink.Contains("avatar-set hubavjpg"), "leaf acepta avatar JPEG real del hub (sin reescalar)");
+            Check(hubLink.Contains("avatar-set leafavjpg"), "hub acepta avatar JPEG real del leaf (sin reescalar)");
+            Check(leafLink.Contains("avatar-set hubweb"), "leaf recibe avatar del web del hub (vino en el login)");
             Check(leafLink.Contains("recv-scribble hubscribble"), "leaf recibe SCRIBBLE del hub");
             Check(hubLink.Contains("recv-audio from leafaudio"), "hub recibe AUDIO del leaf");
             Check(hubLink.Contains("recv-avatar leafavatar"), "hub recibe AVATAR del leaf");
@@ -524,6 +527,21 @@ namespace linktest
             SendChunks(link, 70000, 11, (total, index, chunk) =>
                 LeafOutbound.LeafAvatar(link, tag + "avatar", (ushort)total, (ushort)index, chunk));
 
+            // Avatar Ares real (JPEG 48x48 chico): debe cruzar tal cual (sin reescalar).
+            byte[] real = WebTestClient.MakeAvatarJpeg();
+            int rtotal = (real.Length + 39999) / 40000;
+
+            for (int i = 0; i < rtotal; i++)
+            {
+                int off = i * 40000;
+                int len = Math.Min(40000, real.Length - off);
+                byte[] chunk = new byte[len];
+                Buffer.BlockCopy(real, off, chunk, 0, len);
+                link.SendPacket(LeafOutbound.LeafAvatar(link, tag + "avjpg", (ushort)rtotal, (ushort)i, chunk));
+            }
+
+            Console.WriteLine("[" + tag + "] avatar jpeg sent: " + real.Length + " bytes");
+
             SendChunks(link, 110000, 13, (total, index, chunk) =>
                 LeafOutbound.LeafScribbleUser(link, target, tag + "scribble", 10, (ushort)total, (ushort)index, chunk));
 
@@ -618,7 +636,7 @@ namespace linktest
             bool hubWebOk = hubWeb.Connect();
             Console.WriteLine("[hub] web client connected = " + hubWebOk);
             if (hubWebOk)
-                hubWeb.Login("hubweb");
+                hubWeb.Login("hubweb", Convert.ToBase64String(WebTestClient.MakeAvatarJpeg()));
 
             Console.WriteLine("[hub] sending public text as hubuser (sin custom) y hubuser2 (con custom)");
             ServerCore.Linker.SendPacket(LeafOutbound.LeafPublicText(ServerCore.Linker, "hubuser", "", "hola-desde-hub", 0));
@@ -801,6 +819,11 @@ namespace linktest
 
         public void Login(String name)
         {
+            this.Login(name, "/default.png");
+        }
+
+        public void Login(String name, String avatarB64)
+        {
             StringBuilder guid = new StringBuilder();
             Random r = new Random();
 
@@ -808,8 +831,13 @@ namespace linktest
                 guid.Append("0123456789abcdef"[r.Next(16)]);
 
             String pm = new String('p', 200);
+            String av = String.IsNullOrEmpty(avatarB64) ? "/default.png" : avatarB64;
 
-            this.SendText("LOGIN:4,32," + name.Length + ",1,1,200,12" + ":" + "5000" + guid.ToString() + name + "1" + "1" + pm + "/default.png");
+            // Campos: ext(4)=5000, guid(32), name(len), ver(1), ?(1), pm(200), avatar(len)
+            String lens = "4,32," + name.Length + ",1,1,200," + av.Length;
+            String data = "5000" + guid.ToString() + name + "1" + "1" + pm + av;
+
+            this.SendText("LOGIN:" + lens + ":" + data);
         }
 
         public void SendPublic(String text)
@@ -836,6 +864,24 @@ namespace linktest
                 {
                     img.Save(ms, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
                     return Convert.ToBase64String(ms.ToArray());
+                }
+            }
+        }
+
+        // Avatar Ares valido: JPEG 48x48 con calidad 69.
+        public static byte[] MakeAvatarJpeg()
+        {
+            using (SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32> img =
+                new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(48, 48))
+            {
+                for (int y = 0; y < 48; y++)
+                    for (int x = 0; x < 48; x++)
+                        img[x, y] = new SixLabors.ImageSharp.PixelFormats.Rgba32((byte)(x * 5), (byte)(y * 5), 90);
+
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    img.Save(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 69 });
+                    return ms.ToArray();
                 }
             }
         }

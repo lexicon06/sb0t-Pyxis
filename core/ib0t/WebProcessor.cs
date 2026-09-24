@@ -965,7 +965,14 @@ namespace core.ib0t
                     IdleManager.Set(client);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                {
                     ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafJoin(ServerCore.Linker, client));
+
+                    // Tras el join, relayar el avatar: si vino dentro del login las
+                    // salas linkeadas no lo recibirian de otra forma.
+                    if (client.AvatarReceived && client.Avatar.Length > 0)
+                        LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
+                }
 
                 Events.Joined(client);
 
