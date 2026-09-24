@@ -676,7 +676,22 @@ namespace core.ib0t
 
             try
             {
-                result = ImageUtils.ScaleJpeg(raw, 48, 48);
+                // Formato Ares: recorte top-center 48x48 + JPEG. La foto completa
+                // (por si es un gif animado) se guarda aparte en FullAvatar.
+                result = ImageUtils.AvatarAres(raw);
+
+                // Si por alguna razon el JPEG quedara >= 4064, bajamos calidad hasta
+                // que entre: Ares no puede con avatares mas grandes.
+                if (result != null)
+                {
+                    int quality = 69;
+
+                    while (result.Length >= 4064 && quality > 20)
+                    {
+                        quality -= 10;
+                        result = ImageUtils.ScaleJpeg(raw, 48, 48, quality);
+                    }
+                }
             }
             catch
             {

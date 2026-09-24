@@ -1113,9 +1113,16 @@ namespace core.LinkLeaf
 
             ServerLog.Channel("link", "recv-avatar " + name + " (" + avatar.Length + " bytes)");
 
+            // El avatar de otra sala puede venir en grande (gif full): para Ares lo
+            // recortamos a 48x48 JPEG y guardamos el original solo para web/mobile.
+            byte[] ares = ImageUtils.AvatarAres(avatar);
+
+            if (ares == null || ares.Length < 10 || ares.Length >= 4064)
+                return;
+
             if (Events.AvatarReceived(user))
             {
-                user.SetAvatar(avatar);
+                user.SetAvatar(ares);
 
                 UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, user)),
                     x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);

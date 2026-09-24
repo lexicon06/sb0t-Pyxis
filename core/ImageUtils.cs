@@ -20,6 +20,7 @@ using System;
 using System.IO;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Formats.Jpeg;
 
 namespace core
 {
@@ -27,22 +28,46 @@ namespace core
     {
         public static byte[] ScaleJpeg(byte[] raw, int width, int height)
         {
+            return ScaleJpeg(raw, width, height, 69);
+        }
+
+        public static byte[] ScaleJpeg(byte[] raw, int width, int height, int quality)
+        {
             using (MemoryStream ms = new MemoryStream(raw))
             using (Image image = Image.Load(ms))
             {
+                // Recorte tipo "object-position: top center" (crop anclado arriba,
+                // centrado horizontalmente) para que nunca deforme avatares cuadrados.
                 image.Mutate(x => x
                     .Resize(new ResizeOptions
                     {
                         Size = new Size(width, height),
-                        Mode = ResizeMode.Stretch
+                        Mode = ResizeMode.Crop,
+                        Position = AnchorPositionMode.Top
                     })
                     .BackgroundColor(Color.White));
 
                 using (MemoryStream out_ms = new MemoryStream())
                 {
-                    image.SaveAsJpeg(out_ms);
+                    image.SaveAsJpeg(out_ms, new JpegEncoder { Quality = quality });
                     return out_ms.ToArray();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Formatea cualquier avatar AL ESTILO DE ARES: recorte top-center a 48x48
+        /// y compresion JPEG 69. Devuelve null si no se puede (imagen rota).
+        /// </summary>
+        public static byte[] AvatarAres(byte[] raw)
+        {
+            try
+            {
+                return ScaleJpeg(raw, 48, 48, 69);
+            }
+            catch
+            {
+                return null;
             }
         }
 

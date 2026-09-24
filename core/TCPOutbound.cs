@@ -326,9 +326,16 @@ namespace core
 
         public static byte[] Avatar(AresClient client, IClient target)
         {
+            // Ares clients crash on oversized avatars (their limit is < 4064 bytes).
+            // Never forward an avatar that big to a raw Ares client.
+            byte[] avatar = target.Avatar;
+
+            if (avatar == null || avatar.Length == 0 || avatar.Length >= 4064)
+                return null;
+
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, target.Name);
-            packet.WriteBytes(target.Avatar);
+            packet.WriteBytes(avatar);
             return packet.ToAresPacket(TCPMsg.MSG_CHAT_SERVER_AVATAR);
         }
 
@@ -341,9 +348,15 @@ namespace core
 
         public static byte[] BotAvatar(AresClient client, byte[] data)
         {
+            // Ares clients crash on oversized avatars: clamp to the accepted limit.
+            byte[] avatar = data;
+
+            if (avatar == null || avatar.Length == 0 || avatar.Length >= 4064)
+                return null;
+
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, Settings.Get<String>("bot"));
-            packet.WriteBytes(data);
+            packet.WriteBytes(avatar);
             return packet.ToAresPacket(TCPMsg.MSG_CHAT_SERVER_AVATAR);
         }
 

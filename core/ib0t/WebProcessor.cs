@@ -633,6 +633,11 @@ namespace core.ib0t
                 {
                     byte[] fullavatar = Convert.FromBase64String(text);
                     byte[] avatar = client.Scale(fullavatar);
+
+                    // Si no se pudo escalar (imagen rota) no tocamos nada.
+                    if (avatar == null || avatar.Length < 10)
+                        return;
+
                     if (!client.Avatar.SequenceEqual(avatar))
                         if (Events.AvatarReceived(client))
                             if (avatar.Length < 4064)
@@ -644,33 +649,17 @@ namespace core.ib0t
                                     client.AvatarReceived = true;
                                     client.DefaultAvatar = false;
                                 }
-                    if (avatar.Length < 10)
+
+                    if (!client.Cloaked && !client.Quarantined)
                     {
-                        if (!client.Cloaked && !client.Quarantined)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.AvatarCleared(x, client)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
+                        UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, client)),
+                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
 
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarClearTo(x, client.Name)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && (x.IsInbizierWeb || x.IsInbizierMobile));
+                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, client.Name, (x.IsInbizierWeb || x.IsInbizierMobile) ? client.FullAvatar : client.Avatar)),
+                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
 
-                            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
-                        }
-                    }
-                    else
-                    {
-                        if (!client.Cloaked && !client.Quarantined)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, client)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
-
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, client.Name, (x.IsInbizierWeb || x.IsInbizierMobile)?client.FullAvatar:client.Avatar)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
-
-                            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
-                        }
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                     }
                 }
                 else
@@ -736,9 +725,10 @@ namespace core.ib0t
                     if (arg_items[6] !="/default.png"&&!String.IsNullOrEmpty(arg_items[6])) {
                         byte[] fullavatar = Convert.FromBase64String(arg_items[6]);
                         byte[] avatar = client.Scale(fullavatar);
-                        if (!client.Avatar.SequenceEqual(avatar))
-                            if (Events.AvatarReceived(client))
-                                if (avatar.Length < 4064)
+
+                        if (avatar != null && avatar.Length >= 10 && avatar.Length < 4064)
+                            if (!client.Avatar.SequenceEqual(avatar))
+                                if (Events.AvatarReceived(client))
                                     if (client.SocketConnected)
                                     {
                                         client.OrgAvatar = avatar;
