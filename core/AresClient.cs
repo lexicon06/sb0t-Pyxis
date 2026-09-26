@@ -34,6 +34,11 @@ namespace core
         public uint LastScribble { get; set; }
         public bool Ares { get; set; }
         public bool IsCbot { get; set; }
+
+        // true: los Ares antiguos/no actualizados traen un decoder UTF-8 casero que
+        // rompe las secuencias de 4 bytes (SMP > U+FFFF): hay que sanitizar lo que
+        // les mandamos. Ver LegacyUnicode.Sanitize.
+        public bool LegacyUnicode { get; set; }
         public ushort ID { get; private set; }
         public IPAddress ExternalIP { get; set; }
         public IPAddress OriginalIP { get; set; }

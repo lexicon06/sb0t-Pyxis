@@ -309,6 +309,7 @@ namespace core
 
         public static String TextSending(IClient client, String text)
         {
+            String original = text;
             String result = text;
 
             ClearIdle(client, result);
@@ -336,6 +337,14 @@ namespace core
                     }
                     catch { }
                 });
+
+            // Un script puede consumir el texto devolviendo "" (p.ej. para renderizar
+            // imagenes/HTML por su cuenta). En ese caso el server no llamaria a
+            // TextSent (historial, VSpy, filtros, stats) y el mensaje se perderia del
+            // historial. Lo procesamos igual con el texto ORIGINAL, sin reenviarlo a
+            // los usuarios (de eso ya se encargo el script).
+            if (String.IsNullOrEmpty(result) && !String.IsNullOrEmpty(original))
+                TextSent(client, original);
 
             return result;
         }

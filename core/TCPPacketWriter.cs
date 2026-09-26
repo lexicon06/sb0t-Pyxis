@@ -138,6 +138,13 @@ namespace core
 
         public void WriteString(IClient client, String text, bool null_terminated)
         {
+            // Clientes Ares antiguos: su decoder UTF-8 rompe los caracteres fuera
+            // del BMP. Se normalizan/reemplazan antes de enviar.
+            AresClient ares = client as AresClient;
+
+            if (ares != null && ares.LegacyUnicode)
+                text = LegacyUnicode.Sanitize(text);
+
             if (client.Encryption.Mode == EncryptionMode.Encrypted)
             {
                 byte[] data = Encoding.UTF8.GetBytes(text);

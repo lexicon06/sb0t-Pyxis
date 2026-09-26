@@ -40,6 +40,7 @@
     <Compile Include="IdleManager.cs" />
     <Compile Include="IgnoreManager.cs" />
     <Compile Include="ImageUtils.cs" />
+    <Compile Include="LegacyUnicode.cs" />
     <Compile Include="LinkHub\HubOutbound.cs" />
     <Compile Include="LinkHub\Leaf.cs" />
     <Compile Include="LinkHub\LeafPool.cs" />

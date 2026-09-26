@@ -654,6 +654,9 @@ namespace core
             client.Version = packet.ReadString(client);
             client.Ares = client.Version.StartsWith("Ares 2.") || client.Version.StartsWith("Ares_2.");
             client.IsCbot = client.Version.StartsWith("cb0t ");
+            // Clientes Ares/cb0t: su decoder UTF-8 rompe los caracteres fuera del BMP
+            // (se ven como "醇ݖ猏"). Se normalizan los nicks/topics/mensajes salientes.
+            client.LegacyUnicode = client.Ares || client.IsCbot;
             client.CustomClient = true; // everyone can be custom client
             client.LocalIP = packet;
             packet.SkipBytes(4);
