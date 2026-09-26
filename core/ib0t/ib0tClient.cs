@@ -439,7 +439,8 @@ namespace core.ib0t
                     ib0t.WebOutbound.PublicTo(x, this.Name, text) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
-                LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this);
+                if (!this.Muzzled)
+                    LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this);
             }
         }
 

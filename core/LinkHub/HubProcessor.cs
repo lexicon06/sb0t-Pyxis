@@ -752,6 +752,11 @@ namespace core.LinkHub
             if (packet.Remaining >= 2)
                 vroom = packet;
 
+            LinkUser src = leaf.Users.Find(x => x.Name == name);
+
+            if (src != null && src.Muzzled)
+                return;
+
             LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteToLeaf(x, name, text, vroom)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
@@ -772,6 +777,13 @@ namespace core.LinkHub
 
             if (packet.Remaining >= 2)
                 vroom = packet;
+
+            // El muzzle se respeta entre salas: si el emisor de la leaf esta muteado,
+            // no se reenvia a las demas.
+            LinkUser src = leaf.Users.Find(x => x.Name == name);
+
+            if (src != null && src.Muzzled)
+                return;
 
             int forwarded = 0;
 

@@ -468,6 +468,11 @@ namespace core.LinkLeaf
 
             bool hasCustom = !String.IsNullOrEmpty(customName);
 
+            // Si el emisor (usuario de otra sala) esta muteado, no se imprime aca:
+            // el muzzle se respeta entre salas linkeadas.
+            if (SenderMuzzled(link, sender))
+                return;
+
             // Dedup: the relay may deliver the same message through several paths.
             if (TextSeen("text|" + sender + "|" + customName + "|" + text))
                 return;
@@ -500,6 +505,9 @@ namespace core.LinkLeaf
 
             if (packet.Remaining >= 2)
                 vroom = packet;
+
+            if (SenderMuzzled(link, sender))
+                return;
 
             ChatLog.WriteLine("link-recv: " + sender + " " + text);
 
@@ -757,6 +765,22 @@ namespace core.LinkLeaf
             }
 
             return user;
+        }
+
+        // Devuelve true si el emisor (usuario de otra sala) esta muteado. Asi el
+        // muzzle se respeta entre salas linkeadas: un usuario muteado no aparece en
+        // las demas salas aunque su texto haya salido por el relay.
+        private static bool SenderMuzzled(LinkClient link, String name)
+        {
+            foreach (Leaf l in link.Leaves)
+            {
+                LinkUser u = l.Users.Find(x => x.Name == name);
+
+                if (u != null)
+                    return u.Muzzled;
+            }
+
+            return false;
         }
 
         private static void HubPublicText(LinkClient link, TCPPacketReader packet)
