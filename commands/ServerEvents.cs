@@ -177,10 +177,11 @@ namespace commands
 
                         if (Settings.PMGreetMsg)
                             client.PM(Server.Chatroom.BotName, Greets.GetPM(client));
-
-                        if (Settings.GreetMsg)
-                            Server.Print(client.Vroom, Greets.GetGreet(client), true);
                     }
+
+                    // El greet publico tambien para inbizier web/mobile.
+                    if (Settings.GreetMsg)
+                        Server.Print(client.Vroom, Greets.GetGreet(client), true);
 
                     if (Settings.History)
                         History.Show(client);

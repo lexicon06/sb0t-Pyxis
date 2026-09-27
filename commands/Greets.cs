@@ -61,15 +61,28 @@ namespace commands
         }
 
         private static int greet_index;
+        private static int last_pick = -1;
 
         public static String GetGreet(IUser client)
         {
             if (list.Count > 0)
             {
-                if (greet_index >= list.Count)
-                    greet_index = 0;
+                // Elegir una bienvenida al azar (antes era secuencial).
+                int pick;
 
-                String s = list[greet_index++];
+                if (list.Count == 1)
+                    pick = 0;
+                else
+                {
+                    // Evitar repetir la ultima usada para que no salga dos veces seguidas.
+                    pick = (int)Math.Floor(new Random().NextDouble() * list.Count);
+
+                    if (pick == last_pick)
+                        pick = (pick + 1) % list.Count;
+                }
+
+                last_pick = pick;
+                String s = list[pick];
                 String _str = Helpers.CountryCodeToString(client.Country);
                 List<String> list1 = new List<String>();
                 Server.Users.Ares(x => list1.Add(x.Name));
@@ -115,6 +128,7 @@ namespace commands
         public static void Load()
         {
             greet_index = 0;
+            last_pick = -1;
             list = new List<String>();
 
             try
