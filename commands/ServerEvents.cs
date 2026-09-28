@@ -65,9 +65,21 @@ namespace commands
 
         private uint _second_timer = 0;
 
+        // Greetings pendientes de enviar en el proximo tick.
+        private struct PendingGreet { public ushort Vroom; public String Text; }
+        private static System.Collections.Generic.Queue<PendingGreet> pending_greets =
+            new System.Collections.Generic.Queue<PendingGreet>();
+
         public void CycleTick()
         {
             uint time = Server.Time;
+
+            // Mandar los greetings encolados en el join (un tick despues).
+            while (pending_greets.Count > 0)
+            {
+                PendingGreet g = pending_greets.Dequeue();
+                Server.Print(g.Vroom, g.Text, true);
+            }
 
             if (time > this._second_timer)
             {
@@ -180,8 +192,10 @@ namespace commands
                     }
 
                     // El greet publico tambien para inbizier web/mobile.
+                    // Se encola y se manda en el proximo tick (un instante despues
+                    // del join), para que el usuario ya este pintado y lo lea bien.
                     if (Settings.GreetMsg)
-                        Server.Print(client.Vroom, Greets.GetGreet(client), true);
+                        pending_greets.Enqueue(new PendingGreet { Vroom = client.Vroom, Text = Greets.GetGreet(client) });
 
                     if (Settings.History)
                         History.Show(client);

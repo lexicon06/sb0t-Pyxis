@@ -393,8 +393,11 @@ namespace core
         {
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            // cb0t soporta mensajes mas largos; Ares clasico queda en 300.
+            int max_text = client.IsCbot ? 1000 : 300;
+
+            if (text.Length > max_text)
+                text = text.Substring(0, max_text);
 
             if (text.StartsWith("#login") || text.StartsWith("#register"))
             {
@@ -518,8 +521,10 @@ namespace core
 
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            int max_text = client.IsCbot ? 1000 : 300;
+
+            if (text.Length > max_text)
+                text = text.Substring(0, max_text);
 
             Events.EmoteReceived(client, text);
 

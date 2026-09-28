@@ -406,13 +406,25 @@ namespace core
             return packet.ToAresPacket(TCPMsg.MSG_CHAT_SERVER_CUSTOM_DATA);
         }
 
+        // Limite de texto saliente: 300 bytes para Ares clasicos (su protocolo),
+        // mas largo para cb0t (clientes custom) que si lo soportan.
+        private const int TEXT_MAX_ARES = 300;
+        private const int TEXT_MAX_CBOT = 1000;
+
+        private static String ClampText(String text, int max)
+        {
+            if (text.Length > max)
+                text = text.Substring(0, max);
+
+            while (Encoding.UTF8.GetByteCount(text) > max)
+                text = text.Substring(0, text.Length - 1);
+
+            return text;
+        }
+
         public static byte[] Public(AresClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
-
-            while (Encoding.UTF8.GetByteCount(text) > 300)
-                text = text.Substring(0, text.Length - 1);
+            text = ClampText(text, client.IsCbot ? TEXT_MAX_CBOT : TEXT_MAX_ARES);
 
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, username);
@@ -422,11 +434,7 @@ namespace core
 
         public static byte[] Emote(AresClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
-
-            while (Encoding.UTF8.GetByteCount(text) > 300)
-                text = text.Substring(0, text.Length - 1);
+            text = ClampText(text, client.IsCbot ? TEXT_MAX_CBOT : TEXT_MAX_ARES);
 
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, username);

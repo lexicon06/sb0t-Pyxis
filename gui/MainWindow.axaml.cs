@@ -417,7 +417,7 @@ namespace gui
                 {
                     string file = files[0].TryGetLocalPath();
                     byte[] data = File.ReadAllBytes(file);
-                    byte[] resized = Services.ImageUtils.ResizeToJpeg(data, 90, 90);
+                    byte[] resized = Services.ImageUtils.ResizeToJpeg(data, 500, 500);
                     this.image1.Source = ToBitmap(resized);
 
                     String path = DataPaths.Avatars;
@@ -449,7 +449,7 @@ namespace gui
                 {
                     string file = files[0].TryGetLocalPath();
                     byte[] data = File.ReadAllBytes(file);
-                    byte[] resized = Services.ImageUtils.ResizeToJpeg(data, 90, 90);
+                    byte[] resized = Services.ImageUtils.ResizeToJpeg(data, 500, 500);
                     this.image2.Source = ToBitmap(resized);
 
                     String path = DataPaths.Avatars;

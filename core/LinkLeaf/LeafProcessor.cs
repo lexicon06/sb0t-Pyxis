@@ -245,7 +245,12 @@ namespace core.LinkLeaf
             if (ac != null)
             {
                 if (ac.CustomClient)
-                    ac.Scribble(sender, img, height);
+                {
+                    // cb0t muestra el scribble EN SALA solo si el sender es el bot
+                    // (users[0]); si no, lo muestra como PM. El autor va en el aviso.
+                    ac.SendPacket(TCPOutbound.NoSuch(ac, "\x000314--- From " + sender));
+                    ac.Scribble(Settings.Get<String>("bot"), img, height);
+                }
             }
             else
             {
@@ -271,8 +276,15 @@ namespace core.LinkLeaf
 
             ServerLog.Channel("link", "recv-scribble-leaf " + sender + " (" + img.Length + " bytes)");
 
-            UserPool.AUsers.ForEachWhere(x => x.Scribble(sender, img, height),
-                x => x.LoggedIn && !x.Quarantined && x.CustomClient);
+            String bot = Settings.Get<String>("bot");
+
+            UserPool.AUsers.ForEachWhere(x =>
+            {
+                // cb0t/Ares: en sala con sender = bot (si no, lo ven como PM) + autor.
+                x.SendPacket(TCPOutbound.NoSuch(x, "\x000314--- From " + sender));
+                x.Scribble(bot, img, height);
+            },
+            x => x.LoggedIn && !x.Quarantined && x.CustomClient);
 
             UserPool.WUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                 x => x.LoggedIn && !x.Quarantined && x.Extended);

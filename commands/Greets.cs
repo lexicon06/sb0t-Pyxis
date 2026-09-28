@@ -107,22 +107,32 @@ namespace commands
                 if (_str == "?")
                     _str = "unknown";
 
-                s = s.Replace("+n", client.Name);
-                s = s.Replace("+ip", client.ExternalIP.ToString());
-                s = s.Replace("+id", client.ID.ToString());
-                s = s.Replace("+f", client.FileCount.ToString());
-                s = s.Replace("+v", client.Version);
-                s = s.Replace("+p", client.DataPort.ToString());
-                s = s.Replace("+uc", Server.Stats.CurrentUserCount.ToString());
-                s = s.Replace("+rn", Server.Chatroom.Name);
-                s = s.Replace("+ut", Helpers.GetUptime);
-                s = s.Replace("+ru", rnd_user);
-                s = s.Replace("+l", _str);
+                s = ReplaceToken(s, "+n", client.Name);
+                s = ReplaceToken(s, "+ip", client.ExternalIP.ToString());
+                s = ReplaceToken(s, "+id", client.ID.ToString());
+                s = ReplaceToken(s, "+f", client.FileCount.ToString());
+                s = ReplaceToken(s, "+v", client.Version);
+                s = ReplaceToken(s, "+p", client.DataPort.ToString());
+                s = ReplaceToken(s, "+uc", Server.Stats.CurrentUserCount.ToString());
+                s = ReplaceToken(s, "+rn", Server.Chatroom.Name);
+                s = ReplaceToken(s, "+ut", Helpers.GetUptime);
+                s = ReplaceToken(s, "+ru", rnd_user);
+                s = ReplaceToken(s, "+l", _str);
 
                 return s;
             }
 
             return "hello " + client.Name;
+        }
+
+        // Reemplaza un token sin importar mayusculas/minusculas (+id == +ID).
+        // El orden de los tokens mas largos va primero para no cortar otros
+        // (ej. +uc antes que +u... no hay +u, pero igual se respeta).
+        private static String ReplaceToken(String text, String token, String value)
+        {
+            return System.Text.RegularExpressions.Regex.Replace(
+                text, System.Text.RegularExpressions.Regex.Escape(token), value,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         }
 
         public static void Load()
@@ -206,17 +216,17 @@ namespace commands
                 _str = "unknown";
 
             String s = _pm;
-            s = s.Replace("+n", client.Name);
-            s = s.Replace("+ip", client.ExternalIP.ToString());
-            s = s.Replace("+id", client.ID.ToString());
-            s = s.Replace("+f", client.FileCount.ToString());
-            s = s.Replace("+v", client.Version);
-            s = s.Replace("+p", client.DataPort.ToString());
-            s = s.Replace("+uc", Server.Stats.CurrentUserCount.ToString());
-            s = s.Replace("+rn", Server.Chatroom.Name);
-            s = s.Replace("+ut", Helpers.GetUptime);
-            s = s.Replace("+ru", rnd_user);
-            s = s.Replace("+l", _str);
+            s = ReplaceToken(s, "+n", client.Name);
+            s = ReplaceToken(s, "+ip", client.ExternalIP.ToString());
+            s = ReplaceToken(s, "+id", client.ID.ToString());
+            s = ReplaceToken(s, "+f", client.FileCount.ToString());
+            s = ReplaceToken(s, "+v", client.Version);
+            s = ReplaceToken(s, "+p", client.DataPort.ToString());
+            s = ReplaceToken(s, "+uc", Server.Stats.CurrentUserCount.ToString());
+            s = ReplaceToken(s, "+rn", Server.Chatroom.Name);
+            s = ReplaceToken(s, "+ut", Helpers.GetUptime);
+            s = ReplaceToken(s, "+ru", rnd_user);
+            s = ReplaceToken(s, "+l", _str);
             return s;
         }
     }
