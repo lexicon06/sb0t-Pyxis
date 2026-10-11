@@ -177,6 +177,10 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_PM_AUDIO:
                     HubPmAudio(link, packet);
                     break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_PM_SCRIBBLE:
+                    HubPmScribble(link, packet);
+                    break;
             }
         }
 
@@ -404,6 +408,70 @@ namespace core.LinkLeaf
             catch (Exception e)
             {
                 ServerLog.ChannelError("link", "pm audio relay failed (ignored)", e);
+            }
+        }
+
+        private static Dictionary<String, AvatarChunkBuffer> pm_scribble_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
+        private static void HubPmScribble(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                String target = packet.ReadString(link);
+                String sender = packet.ReadString(link);
+                uint height = packet;
+                ushort total = packet;
+                ushort index = packet;
+                byte[] chunk = packet;
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = target + "\u0000" + sender;
+
+                if (!pm_scribble_buffers.TryGetValue(key, out var buf) || buf.Total != total)
+                {
+                    buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                    pm_scribble_buffers[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                pm_scribble_buffers.Remove(key);
+
+                int size = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                        size += part.Length;
+
+                byte[] img = new byte[size];
+                int offset = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                    {
+                        Buffer.BlockCopy(part, 0, img, offset, part.Length);
+                        offset += part.Length;
+                    }
+
+                ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (ic != null)
+                    ic.PmScribble(sender, Convert.ToBase64String(img), (int)height);
+
+                ServerLog.Channel("link", "recv-pmscribble from " + sender + " to " + target + " (" + img.Length + " bytes)");
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm scribble relay failed (ignored)", e);
             }
         }
 

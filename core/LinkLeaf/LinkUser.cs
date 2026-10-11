@@ -152,6 +152,21 @@ namespace core.LinkLeaf
             }
         }
 
+        public void PmScribble(String sender, String img, int height)
+        {
+            try { this.PmScribble(sender, Convert.FromBase64String(img), height); }
+            catch { }
+        }
+
+        public void PmScribble(String sender, byte[] img, int height)
+        {
+            if (img == null || img.Length == 0)
+                return;
+
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                LeafOutbound.SendPmScribble(ServerCore.Linker, this, sender, height, img);
+        }
+
         public void Nudge(String sender)
         {
             if (this.CustomClient)

@@ -172,6 +172,10 @@ namespace core.LinkHub
                 case LinkMsg.MSG_LINK_LEAF_PM_AUDIO:
                     LeafPmAudio(leaf, packet);
                     break;
+
+                case LinkMsg.MSG_LINK_LEAF_PM_SCRIBBLE:
+                    LeafPmScribble(leaf, packet);
+                    break;
             }
         }
 
@@ -331,6 +335,37 @@ namespace core.LinkHub
             catch (Exception e)
             {
                 ServerLog.ChannelError("link", "pm audio relay failed on hub (ignored)", e);
+            }
+        }
+
+        private static void LeafPmScribble(Leaf leaf, TCPPacketReader packet)
+        {
+            if (leaf.LoginPhase != LinkLogin.Ready)
+            {
+                leaf.SendPacket(HubOutbound.LinkError(LinkError.BadProtocol));
+                leaf.Disconnect();
+                return;
+            }
+
+            try
+            {
+                uint target_leaf = packet;
+                Leaf l = LeafPool.Leaves.Find(x => x.Ident == target_leaf && x.LoginPhase == LinkLogin.Ready);
+
+                if (l != null)
+                {
+                    String target = packet.ReadString(leaf);
+                    String sender = packet.ReadString(leaf);
+                    uint height = packet;
+                    ushort total = packet;
+                    ushort index = packet;
+                    byte[] chunk = packet;
+                    l.SendPacket(HubOutbound.HubPmScribble(l, target, sender, height, total, index, chunk));
+                }
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm scribble relay failed on hub (ignored)", e);
             }
         }
 

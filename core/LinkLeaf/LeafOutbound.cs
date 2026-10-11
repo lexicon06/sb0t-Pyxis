@@ -497,6 +497,49 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
+        public static byte[] LeafPmScribble(LinkClient x, LinkUser target, String sender, uint height, ushort total, ushort index, byte[] chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt32(target.Link.Ident);
+            packet.WriteString(x, target.Name);
+            packet.WriteString(x, sender);
+            packet.WriteUInt32(height);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PM_SCRIBBLE);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static void SendPmScribble(LinkClient x, LinkUser target, String sender, int height, byte[] img)
+        {
+            byte[] data = img ?? new byte[0];
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            if (total > ushort.MaxValue)
+                total = ushort.MaxValue;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(LeafPmScribble(x, target, sender, (uint)height, (ushort)total, (ushort)i, chunk));
+            }
+        }
+
 
         public static byte[] LeafAdmin(LinkClient x, IClient admin, String command, IClient target, String args)
         {

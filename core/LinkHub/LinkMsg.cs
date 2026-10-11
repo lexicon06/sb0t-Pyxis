@@ -83,6 +83,8 @@ namespace core.LinkHub
         MSG_LINK_HUB_AUDIO = 35,
         MSG_LINK_LEAF_PM_AUDIO = 36,
         MSG_LINK_HUB_PM_AUDIO = 36,
+        MSG_LINK_LEAF_PM_SCRIBBLE = 37,
+        MSG_LINK_HUB_PM_SCRIBBLE = 37,
 
         // admin
         MSG_LINK_LEAF_NICK_CHANGED = 40,
