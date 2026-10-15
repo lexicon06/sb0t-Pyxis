@@ -151,6 +151,10 @@ namespace core
                 case "PM_CUSTOM_DATA_BODY":
                     return TCPMsg.MSG_CHAT_CLIENT_CUSTOM_DATA;
 
+                case "REACTION":
+                case "PM_REACTION":
+                    return TCPMsg.MSG_CHAT_CLIENT_PUBLIC;
+
                 default:
                     return (TCPMsg)255;
             }

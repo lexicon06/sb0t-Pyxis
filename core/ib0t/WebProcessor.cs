@@ -114,6 +114,14 @@ namespace core.ib0t
                     Lag(client, args);
                     break;
 
+                case "REACTION":
+                    RoomReaction(client, args);
+                    break;
+
+                case "PM_REACTION":
+                    PmReaction(client, args);
+                    break;
+
                 default:
                     throw new Exception();
             }
@@ -550,6 +558,13 @@ namespace core.ib0t
             tmp = tmp.Substring(finder + 1);
             int n_len = int.Parse(lens[0]);
             int t_len = int.Parse(lens[1]);
+            String pmId = null;
+            if (lens.Length > 2)
+            {
+                int i_len = int.Parse(lens[2]);
+                if (tmp.Length >= n_len + t_len + i_len)
+                    pmId = tmp.Substring(n_len + t_len, i_len);
+            }
 
             String name = tmp.Substring(0, n_len);
             String text = tmp.Substring(n_len, t_len);
@@ -612,7 +627,8 @@ namespace core.ib0t
 
                     if (!args.Cancel && !String.IsNullOrEmpty(args.Text) && client.SocketConnected)
                     {
-                        target.IUser.PM(client.Name, args.Text);
+                        target.IUser.PM(client.Name, args.Text, pmId);
+                        MessageBuffer.AddPm(client.Name, target.Name, pmId ?? String.Empty, client.Name, args.Text, time);
                         Events.PrivateSent(client, target, args.Text);
                     }
                 }
@@ -920,6 +936,10 @@ namespace core.ib0t
                             x => x.Vroom == client.Vroom && x.Link.Visible);
 
                 client.QueuePacket(WebOutbound.UserlistEndTo(client));
+
+                if (client.IsInbizierWeb || client.IsInbizierMobile)
+                    ib0t.MessageBuffer.SendRoomHistory(client);
+
                 client.QueuePacket(WebOutbound.UrlTo(client, Settings.Get<String>("link", "url"), Settings.Get<String>("text", "url")));
 
 
@@ -1122,8 +1142,11 @@ namespace core.ib0t
                             }
                         }, x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
+                        String mid = ib0t.MessageBuffer.NextId();
+                        ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, time);
+
                         UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(client.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, client.Name, text) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
+                            ib0t.WebOutbound.PublicTo(x, client.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                         Events.TextSent(client, text);
@@ -1180,7 +1203,10 @@ namespace core.ib0t
                                 x.SendPacket(TCPOutbound.Emote(x, client.Name, text));
                             }, x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, client.Name, text)),
+                            String eid = ib0t.MessageBuffer.NextId();
+                            ib0t.MessageBuffer.AddRoom(client.Vroom, eid, client.Name, text, true, time);
+
+                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, client.Name, text, eid)),
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
@@ -1193,6 +1219,40 @@ namespace core.ib0t
             }
         }
 
+                private static void RoomReaction(ib0tClient client, String packet)
+        {
+            String[] a = GetArgItems(packet);
+            if (a.Length < 3) return;
+            String id = a[0];
+            String emoji = a[1];
+            String state = a[2];
+            if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(emoji)) return;
+            if (emoji.Length > 32) return;
+            if (!MessageBuffer.HasRoom(client.Vroom, id)) return;
+            bool isAdd = state != "0";
+            MessageBuffer.ApplyRoomReaction(client.Vroom, id, client.Name, emoji, isAdd);
+            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(WebOutbound.ReactionTo(x, id, client.Name, emoji, isAdd)),
+                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && !x.IgnoreList.Contains(client.Name) && (x.IsInbizierWeb || x.IsInbizierMobile));
+        }
+
+        private static void PmReaction(ib0tClient client, String packet)
+        {
+            String[] a = GetArgItems(packet);
+            if (a.Length < 4) return;
+            String targetName = a[0];
+            String id = a[1];
+            String emoji = a[2];
+            String state = a[3];
+            if (String.IsNullOrEmpty(targetName) || String.IsNullOrEmpty(id) || String.IsNullOrEmpty(emoji)) return;
+            if (emoji.Length > 32) return;
+            ib0tClient target = UserPool.WUsers.Find(x => x.Name == targetName && x.LoggedIn && (x.IsInbizierMobile || x.IsInbizierWeb));
+            if (target == null) return;
+            if (target.IgnoreList.Contains(client.Name) || client.Muzzled) return;
+            bool isAdd = state != "0";
+            if (!MessageBuffer.HasPm(client.Name, targetName, id)) return;
+            MessageBuffer.ApplyPmReaction(client.Name, targetName, id, client.Name, emoji, isAdd);
+            target.QueuePacket(WebOutbound.PmReactionTo(target, client.Name, id, emoji, isAdd));
+        }
         private static void Command(ib0tClient client, String args)
         {
             Command cmd = new Command { Text = args, Args = String.Empty };

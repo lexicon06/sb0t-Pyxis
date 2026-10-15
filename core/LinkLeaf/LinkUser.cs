@@ -338,6 +338,11 @@ namespace core.LinkLeaf
                         this, "pm", sender, text));
         }
 
+        public void PM(String sender, String text, String id)
+        {
+            this.PM(sender, text);
+        }
+
         public void Topic(String text)
         {
             if (text != null)

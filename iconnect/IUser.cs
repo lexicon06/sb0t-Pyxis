@@ -140,6 +140,8 @@ namespace iconnect
         void SendEmote(String text);
         /// <summary>Send a fake PM to this user</summary>
         void PM(String sender, String text);
+        /// <summary>Send a fake PM to this user with an id</summary>
+        void PM(String sender, String text, String id);
         /// <summary>Set a virtual topic for the user</summary>
         void Topic(String text);
         /// <summary>Restore user's avatar</summary>

@@ -370,6 +370,10 @@ namespace core.ib0t
 
         public void PM(String sender, String text)
         {
+            PM(sender, text, null);
+        }
+        public void PM(String sender, String text, String id)
+        {
             if (!this.Extended)
                 return;
 
@@ -380,7 +384,7 @@ namespace core.ib0t
                 len = Encoding.UTF8.GetByteCount(text);
 
                 if (len > 0 && len <= 300)
-                    this.QueuePacket(WebOutbound.PrivateTo(this, sender, text));
+                    this.QueuePacket(WebOutbound.PrivateTo(this, sender, text, id));
             }
         }
 
@@ -419,7 +423,10 @@ namespace core.ib0t
                 UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, this.Name, text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, this.Name, text)),
+                String eid = MessageBuffer.NextId();
+                MessageBuffer.AddRoom(this.Vroom, eid, this.Name, text, true, core.Time.Now);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, this.Name, text, eid)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
@@ -435,8 +442,11 @@ namespace core.ib0t
                     TCPOutbound.Public(x, this.Name, text) : TCPOutbound.NoSuch(x, this.CustomName + text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
+                String mid = MessageBuffer.NextId();
+                MessageBuffer.AddRoom(this.Vroom, mid, this.Name, text, false, core.Time.Now);
+
                 UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(this.CustomName) ?
-                    ib0t.WebOutbound.PublicTo(x, this.Name, text) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
+                    ib0t.WebOutbound.PublicTo(x, this.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (!this.Muzzled)

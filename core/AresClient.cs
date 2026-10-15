@@ -320,6 +320,11 @@ namespace core
             }
         }
 
+        public void PM(String sender, String text, String id)
+        {
+            this.PM(sender, text);
+        }
+
         public void Redirect(String hashlink)
         {
             Room room = Hashlink.DecodeHashlink(hashlink);
@@ -352,7 +357,10 @@ namespace core
                 UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, this.Name, text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, this.Name, text)),
+                String eid = ib0t.MessageBuffer.NextId();
+                ib0t.MessageBuffer.AddRoom(this.Vroom, eid, this.Name, text, true, core.Time.Now);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, this.Name, text, eid)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
@@ -368,8 +376,11 @@ namespace core
                     TCPOutbound.Public(x, this.Name, text) : TCPOutbound.NoSuch(x, this.CustomName + text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
+                String mid = ib0t.MessageBuffer.NextId();
+                ib0t.MessageBuffer.AddRoom(this.Vroom, mid, this.Name, text, false, core.Time.Now);
+
                 UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(this.CustomName) ?
-                    ib0t.WebOutbound.PublicTo(x, this.Name, text) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
+                    ib0t.WebOutbound.PublicTo(x, this.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (!this.Muzzled)
