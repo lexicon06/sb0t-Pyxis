@@ -151,9 +151,12 @@ namespace core
                 case "PM_CUSTOM_DATA_BODY":
                     return TCPMsg.MSG_CHAT_CLIENT_CUSTOM_DATA;
 
+                // Reacciones: ligeras e idempotentes. Las tratamos como CUSTOM_DATA
+                // para que NO cuenten contra el limite de flood (togglear rapido
+                // no debe desconectar al usuario).
                 case "REACTION":
                 case "PM_REACTION":
-                    return TCPMsg.MSG_CHAT_CLIENT_PUBLIC;
+                    return TCPMsg.MSG_CHAT_CLIENT_CUSTOM_DATA;
 
                 default:
                     return (TCPMsg)255;

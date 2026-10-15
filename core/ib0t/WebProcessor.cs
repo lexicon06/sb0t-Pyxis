@@ -1219,7 +1219,21 @@ namespace core.ib0t
             }
         }
 
-                private static void RoomReaction(ib0tClient client, String packet)
+        private static void RoomReaction(ib0tClient client, String packet)
+        {
+            // Nunca debe lanzar: una excepcion aqui desconectaria al cliente
+            // (ServerCore hace Disconnect ante cualquier excepcion).
+            try
+            {
+                RoomReactionCore(client, packet);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "room reaction failed (ignored)", e);
+            }
+        }
+
+        private static void RoomReactionCore(ib0tClient client, String packet)
         {
             String[] a = GetArgItems(packet);
             if (a.Length < 3) return;
@@ -1236,6 +1250,19 @@ namespace core.ib0t
         }
 
         private static void PmReaction(ib0tClient client, String packet)
+        {
+            // Nunca debe lanzar: una excepcion aqui desconectaria al cliente.
+            try
+            {
+                PmReactionCore(client, packet);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm reaction failed (ignored)", e);
+            }
+        }
+
+        private static void PmReactionCore(ib0tClient client, String packet)
         {
             String[] a = GetArgItems(packet);
             if (a.Length < 4) return;
