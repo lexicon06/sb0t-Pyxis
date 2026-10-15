@@ -70,6 +70,15 @@ namespace core.ib0t
                 return (++id_counter).ToString("x");
         }
 
+        // Genera un id y registra el mensaje de sala en el buffer (para poder
+        // validar las reacciones que apunten a el).
+        public static String NewRoomId(ushort vroom, String sender, String text, bool emote, ulong time)
+        {
+            String id = NextId();
+            AddRoom(vroom, id, sender, text, emote, time);
+            return id;
+        }
+
         public static void AddRoom(ushort vroom, String id, String sender, String text, bool emote, ulong time)
         {
             if (String.IsNullOrEmpty(id)) return;

@@ -506,7 +506,10 @@ namespace core.LinkLeaf
                 ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (ic != null)
-                    ic.QueuePacket(ib0t.WebOutbound.PublicTo(ic, sender, text));
+                {
+                    String mid = ib0t.MessageBuffer.NewRoomId(ic.Vroom, sender, text, false, core.Time.Now);
+                    ic.QueuePacket(ib0t.WebOutbound.PublicTo(ic, sender, text, mid));
+                }
             }
         }
 
@@ -524,7 +527,10 @@ namespace core.LinkLeaf
                 ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (ic != null)
-                    ic.QueuePacket(ib0t.WebOutbound.EmoteTo(ic, sender, text));
+                {
+                    String eid = ib0t.MessageBuffer.NewRoomId(ic.Vroom, sender, text, true, core.Time.Now);
+                    ic.QueuePacket(ib0t.WebOutbound.EmoteTo(ic, sender, text, eid));
+                }
             }
         }
 
@@ -560,6 +566,8 @@ namespace core.LinkLeaf
             ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
             ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ") vroom=" + vroom);
 
+            String mid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, false, core.Time.Now);
+
             UserPool.AUsers.ForEachWhere(x =>
             {
                 if (hasCustom && !x.BlockCustomNames)
@@ -573,7 +581,7 @@ namespace core.LinkLeaf
                 if (hasCustom)
                     x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
                 else
-                    x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text));
+                    x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text, mid));
             }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
         }
 
@@ -591,10 +599,12 @@ namespace core.LinkLeaf
 
             ChatLog.WriteLine("link-recv: " + sender + " " + text);
 
+            String eid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, true, core.Time.Now);
+
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, sender, text)),
                 x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
 
-            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, sender, text)),
+            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, sender, text, eid)),
                 x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
         }
 
@@ -909,8 +919,10 @@ namespace core.LinkLeaf
                     }
                 }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
+                String mid = ib0t.MessageBuffer.NewRoomId(user.Vroom, user.Name, text, false, core.Time.Now);
+
                 UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(user.CustomName) ?
-                    ib0t.WebOutbound.PublicTo(x, user.Name, text) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
+                    ib0t.WebOutbound.PublicTo(x, user.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
                     x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
                 Events.TextSent(user, text);
@@ -942,7 +954,9 @@ namespace core.LinkLeaf
                     x.SendPacket(TCPOutbound.Emote(x, user.Name, text));
                 }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text)),
+                String eid = ib0t.MessageBuffer.NewRoomId(user.Vroom, user.Name, text, true, core.Time.Now);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text, eid)),
                     x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
                 Events.EmoteSent(user, text);
