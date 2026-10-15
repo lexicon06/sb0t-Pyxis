@@ -32,7 +32,10 @@ namespace core.ib0t
         }
         public static byte[] ServerInfo(ib0tClient userobj)
         {
-            return WebSockets.Html5TextPacket("SERVER_INFO:2:II" , userobj.WebCredentials.OldProto);
+            // Capacidades del server (solo para clientes inbizier; ver WebProcessor.Login).
+            // El cliente muestra reacciones solo si "caps" incluye "react".
+            String data = "ver=" + Settings.VERSION_NUMBER + ";caps=react,pmreact";
+            return WebSockets.Html5TextPacket("SERVER_INFO:" + data.Length + ":" + data, userobj.WebCredentials.OldProto);
         }
         public static byte[] BuzzTo(ib0tClient userobj,String target)
         {
