@@ -451,7 +451,8 @@ namespace core
 
             if (client.SocketConnected)
             {
-                text = Events.TextSending(client, text);
+                String mid = ib0t.MessageBuffer.NextId();
+                text = Events.TextSending(client, text, mid);
 
                 if (!String.IsNullOrEmpty(text) && client.SocketConnected && !client.Muzzled)
                 {
@@ -504,11 +505,14 @@ namespace core
                         },
                         x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                        String mid = ib0t.MessageBuffer.NextId();
                         ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, Time.Now);
 
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(client.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, client.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
+                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
+                            String.IsNullOrEmpty(client.CustomName)
+                                ? ib0t.WebOutbound.PublicTo(x, client.Name, text, mid)
+                                : (x.ClientCapsNoSuch2
+                                    ? ib0t.WebOutbound.NoSuch2To(x, client.Name, client.CustomName + text, mid)
+                                    : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text))),
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                         Events.TextSent(client, text);
@@ -584,7 +588,7 @@ namespace core
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom));
+                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom, eid));
 
                             Events.EmoteSent(client, text);
                         }
