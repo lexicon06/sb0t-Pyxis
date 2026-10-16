@@ -1104,8 +1104,7 @@ namespace core.ib0t
 
             if (client.SocketConnected)
             {
-                String mid = ib0t.MessageBuffer.NextId();
-                text = Events.TextSending(client, text, mid);
+                text = Events.TextSending(client, text);
                 if (!String.IsNullOrEmpty(text) && client.SocketConnected && !client.Muzzled)
                 {
                     if (client.Idled)
@@ -1149,6 +1148,7 @@ namespace core.ib0t
                             }
                         }, x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
+                        String mid = ib0t.MessageBuffer.NextId();
                         ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, time);
 
                         UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
@@ -1220,7 +1220,7 @@ namespace core.ib0t
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom, eid));
+                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom));
 
                             Events.EmoteSent(client, text);
                         }
@@ -1257,9 +1257,6 @@ namespace core.ib0t
             MessageBuffer.ApplyRoomReaction(client.Vroom, id, client.Name, emoji, isAdd);
             UserPool.WUsers.ForEachWhere(x => x.QueuePacket(WebOutbound.ReactionTo(x, id, client.Name, emoji, isAdd)),
                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && !x.IgnoreList.Contains(client.Name) && (x.IsInbizierWeb || x.IsInbizierMobile));
-
-            // Reaccion entre salas linkeadas: se retransmite igual que el texto.
-            LinkLeaf.LeafOutbound.RelayReaction(id, client.Name, emoji, isAdd, client.Vroom);
         }
 
         private static void PmReaction(ib0tClient client, String packet)

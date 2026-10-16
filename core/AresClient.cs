@@ -364,7 +364,7 @@ namespace core
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, this.Name, text, this.Vroom, eid));
+                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, this.Name, text, this.Vroom));
             }
         }
 
@@ -388,7 +388,7 @@ namespace core
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (!this.Muzzled)
-                    LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this, mid);
+                    LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this);
             }
         }
 

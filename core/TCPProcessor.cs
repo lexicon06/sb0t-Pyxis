@@ -455,8 +455,7 @@ namespace core
 
             if (client.SocketConnected)
             {
-                String mid = ib0t.MessageBuffer.NextId();
-                text = Events.TextSending(client, text, mid);
+                text = Events.TextSending(client, text);
 
                 if (!String.IsNullOrEmpty(text) && client.SocketConnected && !client.Muzzled)
                 {
@@ -509,6 +508,7 @@ namespace core
                         },
                         x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
+                        String mid = ib0t.MessageBuffer.NextId();
                         ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, Time.Now);
 
                         UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
@@ -592,7 +592,7 @@ namespace core
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom, eid));
+                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom));
 
                             Events.EmoteSent(client, text);
                         }

@@ -307,7 +307,7 @@ namespace core
             Unidled(client, seconds_away);
         }
 
-        public static String TextSending(IClient client, String text, String mid = null)
+        public static String TextSending(IClient client, String text)
         {
             String original = text;
             String result = text;
@@ -320,7 +320,7 @@ namespace core
             // No relayear si el emisor esta muteado: en su sala no puede hablar, asi
             // que tampoco debe aparecer en las salas linkeadas.
             if ((client is AresClient || client is ib0t.ib0tClient) && !client.Muzzled)
-                LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, result, client, mid);
+                LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, result, client);
 
             result = js.TextSending(client != null ? client.IUser : null, result);
 
