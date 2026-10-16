@@ -382,7 +382,11 @@ namespace core
 
                     if (!args.Cancel && !String.IsNullOrEmpty(args.Text) && client.SocketConnected)
                     {
-                        target.IUser.PM(client.Name, args.Text);
+                        // El emisor Ares/TCP no manda id de mensaje; lo generamos aca
+                        // para que el destinatario inbizier pueda reaccionar al PM.
+                        String pmId = ib0t.MessageBuffer.NextId();
+                        target.IUser.PM(client.Name, args.Text, pmId);
+                        ib0t.MessageBuffer.AddPm(client.Name, target.Name, pmId, client.Name, args.Text, Time.Now);
                         Events.PrivateSent(client, target, args.Text);
                     }
                 }

@@ -631,8 +631,13 @@ namespace core.ib0t
 
                     if (!args.Cancel && !String.IsNullOrEmpty(args.Text) && client.SocketConnected)
                     {
+                        // Si el emisor es un cliente antiguo (no manda id), generamos
+                        // uno aca para que el destinatario inbizier pueda reaccionar.
+                        if (String.IsNullOrEmpty(pmId))
+                            pmId = MessageBuffer.NextId();
+
                         target.IUser.PM(client.Name, args.Text, pmId);
-                        MessageBuffer.AddPm(client.Name, target.Name, pmId ?? String.Empty, client.Name, args.Text, time);
+                        MessageBuffer.AddPm(client.Name, target.Name, pmId, client.Name, args.Text, time);
                         Events.PrivateSent(client, target, args.Text);
                     }
                 }
