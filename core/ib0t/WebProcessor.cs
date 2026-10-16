@@ -122,6 +122,10 @@ namespace core.ib0t
                     PmReaction(client, args);
                     break;
 
+                case "CLIENT_CAPS":
+                    ClientCaps(client, args);
+                    break;
+
                 default:
                     throw new Exception();
             }
@@ -937,9 +941,6 @@ namespace core.ib0t
 
                 client.QueuePacket(WebOutbound.UserlistEndTo(client));
 
-                if (client.IsInbizierWeb || client.IsInbizierMobile)
-                    ib0t.MessageBuffer.SendRoomHistory(client);
-
                 client.QueuePacket(WebOutbound.UrlTo(client, Settings.Get<String>("link", "url"), Settings.Get<String>("text", "url")));
 
 
@@ -1098,7 +1099,8 @@ namespace core.ib0t
 
             if (client.SocketConnected)
             {
-                text = Events.TextSending(client, text);
+                String mid = ib0t.MessageBuffer.NextId();
+                text = Events.TextSending(client, text, mid);
                 if (!String.IsNullOrEmpty(text) && client.SocketConnected && !client.Muzzled)
                 {
                     if (client.Idled)
@@ -1142,11 +1144,14 @@ namespace core.ib0t
                             }
                         }, x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                        String mid = ib0t.MessageBuffer.NextId();
                         ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, time);
 
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(client.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, client.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
+                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
+                            String.IsNullOrEmpty(client.CustomName)
+                                ? ib0t.WebOutbound.PublicTo(x, client.Name, text, mid)
+                                : (x.ClientCapsNoSuch2
+                                    ? ib0t.WebOutbound.NoSuch2To(x, client.Name, client.CustomName + text, mid)
+                                    : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text))),
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                         Events.TextSent(client, text);
@@ -1210,7 +1215,7 @@ namespace core.ib0t
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom));
+                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom, eid));
 
                             Events.EmoteSent(client, text);
                         }
@@ -1247,6 +1252,9 @@ namespace core.ib0t
             MessageBuffer.ApplyRoomReaction(client.Vroom, id, client.Name, emoji, isAdd);
             UserPool.WUsers.ForEachWhere(x => x.QueuePacket(WebOutbound.ReactionTo(x, id, client.Name, emoji, isAdd)),
                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && !x.IgnoreList.Contains(client.Name) && (x.IsInbizierWeb || x.IsInbizierMobile));
+
+            // Reaccion entre salas linkeadas: se retransmite igual que el texto.
+            LinkLeaf.LeafOutbound.RelayReaction(id, client.Name, emoji, isAdd, client.Vroom);
         }
 
         private static void PmReaction(ib0tClient client, String packet)
@@ -1285,6 +1293,32 @@ namespace core.ib0t
             Command cmd = new Command { Text = args, Args = String.Empty };
             Helpers.PopulateCommand(cmd);
             Events.Command(client, args, cmd.Target, cmd.Args);
+        }
+
+        // Handshake de capacidades del cliente (solo lo envia MercuryX y solo
+        // cuando el server anuncio la cap "nosuch2" en SERVER_INFO). Sirve para:
+        //   - habilitar NOSUCH2 (reacciones en mensajes con customname),
+        //   - enviar el historial reciente SOLO a clientes que lo entienden.
+        private static void ClientCaps(ib0tClient client, String packet)
+        {
+            // Nunca debe lanzar: una excepcion aqui desconectaria al cliente.
+            try
+            {
+                String[] a = GetArgItems(packet);
+                if (a.Length < 1) return;
+                String caps = a[0] ?? String.Empty;
+
+                if (caps.Contains("react")) client.ClientSupportsReactions = true;
+                if (caps.Contains("nosuch2")) client.ClientCapsNoSuch2 = true;
+
+                // El historial (con reacciones) solo va a clientes que lo entienden.
+                if (client.ClientSupportsReactions)
+                    ib0t.MessageBuffer.SendRoomHistory(client);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "client caps failed (ignored)", e);
+            }
         }
     }
 }

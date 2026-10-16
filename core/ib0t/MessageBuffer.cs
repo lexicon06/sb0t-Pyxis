@@ -63,11 +63,31 @@ namespace core.ib0t
         private static readonly Queue<ushort> room_order = new Queue<ushort>();
         private static readonly Queue<String> pm_order = new Queue<String>();
 
-        // Devuelve un id unico por sesion de servidor (hex corto).
+        // Etiqueta unica por servidor. Con ella el mismo mensaje conserva el
+        // mismo id en todos los servers del link (cada server genera ids con su
+        // propio contador, asi que sin etiqueta colisionarian entre salas).
+        private static String server_tag = null;
+        private static String ServerTag()
+        {
+            if (server_tag == null)
+            {
+                String seed = core.Settings.Name;
+                if (String.IsNullOrEmpty(seed))
+                    seed = "s";
+                using (System.Security.Cryptography.MD5 md5 = System.Security.Cryptography.MD5.Create())
+                {
+                    byte[] h = md5.ComputeHash(Encoding.UTF8.GetBytes(seed));
+                    server_tag = BitConverter.ToString(h).Replace("-", String.Empty).Substring(0, 6).ToLowerInvariant();
+                }
+            }
+            return server_tag;
+        }
+
+        // Devuelve un id unico por sesion de servidor (etiqueta + hex corto).
         public static String NextId()
         {
             lock (id_lock)
-                return (++id_counter).ToString("x");
+                return ServerTag() + "-" + (++id_counter).ToString("x");
         }
 
         // Genera un id y registra el mensaje de sala en el buffer (para poder

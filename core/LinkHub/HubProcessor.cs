@@ -176,6 +176,10 @@ namespace core.LinkHub
                 case LinkMsg.MSG_LINK_LEAF_PM_SCRIBBLE:
                     LeafPmScribble(leaf, packet);
                     break;
+
+                case LinkMsg.MSG_LINK_LEAF_REACTION:
+                    LeafReaction(leaf, packet);
+                    break;
             }
         }
 
@@ -783,16 +787,20 @@ namespace core.LinkHub
             String name = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
             ushort vroom = 0;
+            String mid = null;
 
             if (packet.Remaining >= 2)
                 vroom = packet;
+
+            if (packet.Remaining >= 2)
+                mid = packet.ReadString(leaf);
 
             LinkUser src = leaf.Users.Find(x => x.Name == name);
 
             if (src != null && src.Muzzled)
                 return;
 
-            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteToLeaf(x, name, text, vroom)),
+            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubEmoteToLeaf(x, name, text, vroom, mid)),
                 x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 
@@ -809,9 +817,13 @@ namespace core.LinkHub
             String customName = packet.ReadString(leaf);
             String text = packet.ReadString(leaf);
             ushort vroom = 0;
+            String mid = null;
 
             if (packet.Remaining >= 2)
                 vroom = packet;
+
+            if (packet.Remaining >= 2)
+                mid = packet.ReadString(leaf);
 
             // El muzzle se respeta entre salas: si el emisor de la leaf esta muteado,
             // no se reenvia a las demas.
@@ -824,12 +836,36 @@ namespace core.LinkHub
 
             LeafPool.Leaves.ForEachWhere(x =>
             {
-                x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text, vroom));
+                x.SendPacket(HubOutbound.HubPublicToLeaf(x, name, customName, text, vroom, mid));
                 forwarded++;
             }, x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
 
             ServerLog.Channel("link", "text fwd: from leaf " + leaf.Ident + " [" + name + "] -> " + forwarded +
                 " leaves (total " + LeafPool.Leaves.Count + ")");
+        }
+
+        private static void LeafReaction(Leaf leaf, TCPPacketReader packet)
+        {
+            if (leaf.LoginPhase != LinkLogin.Ready)
+                return;
+
+            String id = packet.ReadString(leaf);
+            String reactor = packet.ReadString(leaf);
+            String emoji = packet.ReadString(leaf);
+            ushort isAdd = 0;
+            ushort vroom = 0;
+
+            if (packet.Remaining >= 2)
+                isAdd = packet;
+
+            if (packet.Remaining >= 2)
+                vroom = packet;
+
+            if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(reactor) || String.IsNullOrEmpty(emoji))
+                return;
+
+            LeafPool.Leaves.ForEachWhere(x => x.SendPacket(HubOutbound.HubReactionToLeaf(x, id, reactor, emoji, isAdd != 0, vroom)),
+                x => x.Ident != leaf.Ident && x.LoginPhase == LinkLogin.Ready);
         }
 
         private static void LeafPrivateText(Leaf leaf, TCPPacketReader packet)

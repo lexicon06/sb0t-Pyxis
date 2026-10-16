@@ -104,6 +104,9 @@ namespace core.ib0t
         private Resolver dnsResolver = new Resolver();
         public bool IsInbizierMobile { get; set; }
         public bool IsInbizierWeb { get; set; }
+        // Capacidades anunciadas por el cliente (handshake CLIENT_CAPS).
+        public bool ClientSupportsReactions { get; set; }
+        public bool ClientCapsNoSuch2 { get; set; }
         public ib0tClient(AresClient client, ulong time, ushort id)
         {
             this.WebClient = true;
@@ -430,7 +433,7 @@ namespace core.ib0t
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, this.Name, text, this.Vroom));
+                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, this.Name, text, this.Vroom, eid));
             }
         }
 
@@ -445,12 +448,16 @@ namespace core.ib0t
                 String mid = MessageBuffer.NextId();
                 MessageBuffer.AddRoom(this.Vroom, mid, this.Name, text, false, core.Time.Now);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(this.CustomName) ?
-                    ib0t.WebOutbound.PublicTo(x, this.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
+                    String.IsNullOrEmpty(this.CustomName)
+                        ? ib0t.WebOutbound.PublicTo(x, this.Name, text, mid)
+                        : (x.ClientCapsNoSuch2
+                            ? ib0t.WebOutbound.NoSuch2To(x, this.Name, this.CustomName + text, mid)
+                            : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text))),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (!this.Muzzled)
-                    LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this);
+                    LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this, mid);
             }
         }
 

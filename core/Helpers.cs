@@ -578,9 +578,6 @@ namespace core
 
             client.QueuePacket(WebOutbound.UserlistEndTo(client));
 
-            if (client.IsInbizierWeb || client.IsInbizierMobile)
-                ib0t.MessageBuffer.SendRoomHistory(client);
-
             if (features)
                 client.QueuePacket(WebOutbound.UrlTo(client, Settings.Get<String>("link", "url"), Settings.Get<String>("text", "url")));
 

@@ -34,7 +34,7 @@ namespace core.ib0t
         {
             // Capacidades del server (solo para clientes inbizier; ver WebProcessor.Login).
             // El cliente muestra reacciones solo si "caps" incluye "react".
-            String data = "ver=" + Settings.VERSION_NUMBER + ";caps=react,pmreact";
+            String data = "ver=" + Settings.VERSION_NUMBER + ";caps=react,pmreact,nosuch2";
             return WebSockets.Html5TextPacket("SERVER_INFO:" + data.Length + ":" + data, userobj.WebCredentials.OldProto);
         }
         public static byte[] BuzzTo(ib0tClient userobj,String target)
@@ -145,6 +145,25 @@ namespace core.ib0t
                 str = str.Substring(0, 300);
 
             return WebSockets.Html5TextPacket("NOSUCH:" + str.Length + ":" + str, userobj.WebCredentials.OldProto);
+        }
+
+        // NOSUCH2: como NOSUCH pero con el nick real del emisor y el id del
+        // mensaje, para que MercuryX pueda mostrar reacciones sobre mensajes de
+        // usuarios con customname. Solo se envia a clientes que anunciaron la
+        // cap "nosuch2" (ver WebProcessor.ClientCaps).
+        public static byte[] NoSuch2To(ib0tClient userobj, String nick, String text, String id)
+        {
+            String str = text;
+
+            if (str.Length > 300)
+                str = str.Substring(0, 300);
+
+            String n = nick ?? String.Empty;
+
+            if (String.IsNullOrEmpty(id))
+                return WebSockets.Html5TextPacket("NOSUCH:" + str.Length + ":" + str, userobj.WebCredentials.OldProto);
+
+            return WebSockets.Html5TextPacket("NOSUCH2:" + n.Length + "," + str.Length + "," + id.Length + ":" + n + str + id, userobj.WebCredentials.OldProto);
         }
 
         public static byte[] ScribbleHead(ib0tClient userobj, String sender, int count, String height)

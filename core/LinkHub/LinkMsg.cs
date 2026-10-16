@@ -86,6 +86,10 @@ namespace core.LinkHub
         MSG_LINK_LEAF_PM_SCRIBBLE = 37,
         MSG_LINK_HUB_PM_SCRIBBLE = 37,
 
+        // reactions (cross-linked rooms)
+        MSG_LINK_LEAF_REACTION = 92,
+        MSG_LINK_HUB_REACTION = 92,
+
         // admin
         MSG_LINK_LEAF_NICK_CHANGED = 40,
         MSG_LINK_HUB_NICK_CHANGED = 40,

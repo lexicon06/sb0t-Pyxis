@@ -181,6 +181,10 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_PM_SCRIBBLE:
                     HubPmScribble(link, packet);
                     break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_REACTION:
+                    HubReactionToLeaf(link, packet);
+                    break;
             }
         }
 
@@ -548,9 +552,16 @@ namespace core.LinkLeaf
             String customName = packet.ReadString(link);
             String text = packet.ReadString(link);
             ushort vroom = 0;
+            String mid = null;
 
             if (packet.Remaining >= 2)
                 vroom = packet;
+
+            if (packet.Remaining >= 2)
+                mid = packet.ReadString(link);
+
+            if (String.IsNullOrEmpty(mid))
+                mid = null;
 
             bool hasCustom = !String.IsNullOrEmpty(customName);
 
@@ -566,7 +577,12 @@ namespace core.LinkLeaf
             ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
             ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ") vroom=" + vroom);
 
-            String mid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, false, core.Time.Now);
+            // Si el emisor retransmitio el id, lo reutilizamos (reacciones entre
+            // salas); si no, generamos uno local (peer antiguo).
+            if (mid != null)
+                ib0t.MessageBuffer.AddRoom(vroom, mid, sender, text, false, core.Time.Now);
+            else
+                mid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, false, core.Time.Now);
 
             UserPool.AUsers.ForEachWhere(x =>
             {
@@ -579,7 +595,12 @@ namespace core.LinkLeaf
             UserPool.WUsers.ForEachWhere(x =>
             {
                 if (hasCustom)
-                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
+                {
+                    if (x.ClientCapsNoSuch2)
+                        x.QueuePacket(ib0t.WebOutbound.NoSuch2To(x, sender, customName + text, mid));
+                    else
+                        x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
+                }
                 else
                     x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text, mid));
             }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
@@ -590,22 +611,57 @@ namespace core.LinkLeaf
             String sender = packet.ReadString(link);
             String text = packet.ReadString(link);
             ushort vroom = 0;
+            String eid = null;
 
             if (packet.Remaining >= 2)
                 vroom = packet;
+
+            if (packet.Remaining >= 2)
+                eid = packet.ReadString(link);
+
+            if (String.IsNullOrEmpty(eid))
+                eid = null;
 
             if (SenderMuzzled(link, sender))
                 return;
 
             ChatLog.WriteLine("link-recv: " + sender + " " + text);
 
-            String eid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, true, core.Time.Now);
+            if (eid != null)
+                ib0t.MessageBuffer.AddRoom(vroom, eid, sender, text, true, core.Time.Now);
+            else
+                eid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, true, core.Time.Now);
 
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, sender, text)),
                 x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
 
             UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, sender, text, eid)),
                 x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
+        }
+
+        private static void HubReactionToLeaf(LinkClient link, TCPPacketReader packet)
+        {
+            String id = packet.ReadString(link);
+            String reactor = packet.ReadString(link);
+            String emoji = packet.ReadString(link);
+            ushort isAdd = 0;
+            ushort vroom = 0;
+
+            if (packet.Remaining >= 2)
+                isAdd = packet;
+
+            if (packet.Remaining >= 2)
+                vroom = packet;
+
+            if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(reactor) || String.IsNullOrEmpty(emoji))
+                return;
+
+            // Aplicamos localmente (idempotente) y se lo mostramos a los clientes
+            // inbizier de la vroom. Los peers antiguos simplemente no llegan aqui.
+            ib0t.MessageBuffer.ApplyRoomReaction(vroom, id, reactor, emoji, isAdd != 0);
+
+            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.ReactionTo(x, id, reactor, emoji, isAdd != 0)),
+                x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom && !x.IgnoreList.Contains(reactor) && (x.IsInbizierWeb || x.IsInbizierMobile));
         }
 
         // Collapses duplicate deliveries of the same text for the same user: the relay

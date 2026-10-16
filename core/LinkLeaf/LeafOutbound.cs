@@ -110,7 +110,7 @@ namespace core.LinkLeaf
             }
         }
 
-        public static int RelayPublicText(String sender, String customName, String text, IClient notify = null)
+        public static int RelayPublicText(String sender, String customName, String text, IClient notify = null, String mid = null)
         {
             if (String.IsNullOrEmpty(sender) || text == null)
                 return 0;
@@ -131,7 +131,7 @@ namespace core.LinkLeaf
                 // users and to sibling leaves). This is the original mechanism.
                 if (link_ready)
                 {
-                    ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text, vroom));
+                    ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text, vroom, mid));
                     sent++;
                 }
 
@@ -141,7 +141,7 @@ namespace core.LinkLeaf
                     if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
                         continue;
 
-                    leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text, vroom));
+                    leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text, vroom, mid));
                     sent++;
                 }
             }
@@ -555,26 +555,70 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafPublicText(LinkClient x, String name, String customName, String text, ushort vroom)
+        public static byte[] LeafPublicText(LinkClient x, String name, String customName, String text, ushort vroom, String mid = null)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
             packet.WriteString(x, customName ?? String.Empty, false);
             packet.WriteString(x, text, false);
             packet.WriteUInt16(vroom);
+            packet.WriteString(x, mid ?? String.Empty, false);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PUBLIC_TEXT);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafEmoteText(LinkClient x, String name, String text, ushort vroom)
+        public static byte[] LeafEmoteText(LinkClient x, String name, String text, ushort vroom, String mid = null)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
             packet.WriteString(x, text, false);
             packet.WriteUInt16(vroom);
+            packet.WriteString(x, mid ?? String.Empty, false);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_EMOTE_TEXT);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        // Retransmite una reaccion de sala por el link (mismo camino que el texto).
+        public static void RelayReaction(String id, String reactor, String emoji, bool isAdd, ushort vroom)
+        {
+            if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(reactor) || String.IsNullOrEmpty(emoji))
+                return;
+
+            try
+            {
+                bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
+                    ServerCore.Linker.LoginPhase == LinkLogin.Ready;
+
+                if (link_ready)
+                    ServerCore.Linker.SendPacket(LeafReaction(ServerCore.Linker, id, reactor, emoji, isAdd, vroom));
+
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    leaf.SendPacket(LinkHub.HubOutbound.HubReactionToLeaf(leaf, id, reactor, emoji, isAdd, vroom));
+                }
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "relay reaction failed (ignored)", e);
+            }
+        }
+
+        public static byte[] LeafReaction(LinkClient x, String id, String reactor, String emoji, bool isAdd, ushort vroom)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteString(x, id, false);
+            packet.WriteString(x, reactor, false);
+            packet.WriteString(x, emoji, false);
+            packet.WriteUInt16(isAdd ? (ushort)1 : (ushort)0);
+            packet.WriteUInt16(vroom);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_REACTION);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
