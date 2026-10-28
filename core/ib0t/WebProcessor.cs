@@ -665,6 +665,37 @@ namespace core.ib0t
 
             return items.ToArray();
         }
+        // Limites de avatar de ENTRADA (evita que una imagen gigante rompa el
+        // login por el tope de frame de 30MB o cause OOM al decodificar).
+        private const int MAX_AVATAR_BYTES = 15 * 1024 * 1024; // 15 MB
+        private const int MAX_AVATAR_DIM = 4096;               // 4K max por lado
+
+        private static bool AvatarTooLarge(byte[] fullavatar)
+        {
+            if (fullavatar == null)
+                return false;
+
+            if (fullavatar.Length > MAX_AVATAR_BYTES)
+                return true;
+
+            try
+            {
+                using (MemoryStream ms = new MemoryStream(fullavatar))
+                {
+                    var info = SixLabors.ImageSharp.Image.Identify(ms);
+
+                    if (info.Width > MAX_AVATAR_DIM || info.Height > MAX_AVATAR_DIM)
+                        return true;
+                }
+            }
+            catch
+            {
+                // Imagen corrupta: se deja pasar a Scale, que devuelve null.
+            }
+
+            return false;
+        }
+
         private static void Avatar(ib0tClient client, String packet)
         {
             String[] arg_items = GetArgItems(packet);
@@ -674,6 +705,13 @@ namespace core.ib0t
                 if (text != "/default.png")
                 {
                     byte[] fullavatar = Convert.FromBase64String(text);
+
+                    if (AvatarTooLarge(fullavatar))
+                    {
+                        ServerLog.Channel("avatar", "avatar rechazado (demasiado grande) de " + client.Name);
+                        return;
+                    }
+
                     byte[] avatar = client.Scale(fullavatar);
 
                     // Si no se pudo escalar (imagen rota) no tocamos nada.
@@ -766,19 +804,27 @@ namespace core.ib0t
                     client.PersonalMessage = arg_items[5];
                     if (arg_items[6] !="/default.png"&&!String.IsNullOrEmpty(arg_items[6])) {
                         byte[] fullavatar = Convert.FromBase64String(arg_items[6]);
-                        byte[] avatar = client.Scale(fullavatar);
 
-                        if (avatar != null && avatar.Length >= 10 && avatar.Length < 4064)
-                            if (!client.Avatar.SequenceEqual(avatar))
-                                if (Events.AvatarReceived(client))
-                                    if (client.SocketConnected)
-                                    {
-                                        client.OrgAvatar = avatar;
-                                        client.Avatar = avatar;
-                                        client.FullAvatar = fullavatar;
-                                        client.AvatarReceived = true;
-                                        client.DefaultAvatar = false;
-                                    }
+                        if (!AvatarTooLarge(fullavatar))
+                        {
+                            byte[] avatar = client.Scale(fullavatar);
+
+                            if (avatar != null && avatar.Length >= 10 && avatar.Length < 4064)
+                                if (!client.Avatar.SequenceEqual(avatar))
+                                    if (Events.AvatarReceived(client))
+                                        if (client.SocketConnected)
+                                        {
+                                            client.OrgAvatar = avatar;
+                                            client.Avatar = avatar;
+                                            client.FullAvatar = fullavatar;
+                                            client.AvatarReceived = true;
+                                            client.DefaultAvatar = false;
+                                        }
+                        }
+                        else
+                        {
+                            ServerLog.Channel("avatar", "avatar rechazado (demasiado grande) de " + client.Name);
+                        }
                     }
                     
                     
