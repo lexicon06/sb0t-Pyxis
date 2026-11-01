@@ -395,7 +395,7 @@ namespace core
         public void Topic(String text)
         {
             if (text != null)
-                if (Encoding.UTF8.GetByteCount(text) <= 500)
+                if (Encoding.UTF8.GetByteCount(text) <= 10000)
                     this.SendPacket(TCPOutbound.TopicFirst(this, text));
         }
 
