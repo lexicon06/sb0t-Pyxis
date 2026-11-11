@@ -1,222 +1,141 @@
-# 🚀 sb0t Pyxis
+# sb0t Pyxis
 
-**sb0t Pyxis** es un **servidor de chat Ares** moderno y completo. Te permite crear tu propia sala de chat, conectarte con clientes Ares (como inbizio) y administrarla desde un panel web, todo desde tu propia computadora o servidor.
+**sb0t Pyxis** es un servidor de chat compatible con Ares, mantenido y modernizado sobre .NET 8. Permite crear tu propia sala, conectarla con clientes clásicos (Ares, cb0t) y modernos (MercuryX / inbizier web y móvil), y administrarla desde una interfaz de escritorio o desde un panel web.
 
-Este proyecto es la versión moderna y renovada de sb0t, el clásico servidor de chat Ares:
+Es la evolución moderna del clásico sb0t: multiplataforma, con interfaz gráfica (Avalonia), panel web (Blazor Server), configuración en archivos (sin registro de Windows), enlace entre salas y soporte para las funciones que usan los clientes actuales.
 
-- ✅ **.NET 8** — tecnología moderna y rápida
-- ✅ **Interfaz gráfica de escritorio** (Avalonia) — funciona en Windows, Linux y macOS
-- ✅ **Panel web de administración** (Blazor Server) — administrá la sala desde el navegador
-- ✅ **Multiplataforma** — los datos se guardan en un archivo JSON (no más registro de Windows)
-- ✅ **En español e inglés** — elegí el idioma con un clic
+> Actualizado a fines de 2026.
 
 ---
 
-## ✨ ¿Qué puedo hacer con sb0t Pyxis?
+## Qué ofrece
 
-- **Crear una sala de chat** a la que se conectan los clientes Ares (inbizio, etc.)
-- **Ver quién está conectado** en tiempo real y desde dónde
-- **Expulsar (kick)** y **banear** usuarios — y desbanearlos cuando quieras
-- **Subir avatares** (del servidor y el avatar por defecto)
-- **Configurar todo**: nombre de la sala, puerto, bot, contraseña del dueño, niveles de comandos, captcha, proxies, enlaces entre servidores (hub/leaf) y mucho más
-- **Ver los registros (logs)** del servidor en vivo
-- **Conectar salas entre sí** (modo Hub / Leaf) para armar una red de servidores
-
----
-
-## 📦 Descargas (Releases)
-
-Cuando publiquemos una versión nueva, los archivos listos para usar estarán en la página de **Releases**:
-
-👉 **https://github.com/lexicon06/sb0t-Pyxis/releases**
-
-Cada release traerá los siguientes archivos:
-
-| Archivo | Qué es | Sistema | ¿Necesita instalar algo? |
-|---|---|---|---|
-| `sb0t-Pyxis-gui-win-x64-SELF-CONTAINED.zip` ⭐ | Aplicación de escritorio | **Windows** 64 bits | ❌ No — funciona directo |
-| `sb0t-Pyxis-web-win-x64-SELF-CONTAINED.zip` ⭐ | **Panel web** | **Windows** 64 bits | ❌ No — funciona directo |
-| `sb0t-Pyxis-gui-linux-x64-SELF-CONTAINED.zip` ⭐ | Aplicación de escritorio | **Linux** 64 bits | ❌ No — funciona directo |
-| `sb0t-Pyxis-web-linux-x64-SELF-CONTAINED.zip` ⭐ | **Panel web** | **Linux** 64 bits | ❌ No — funciona directo |
-| `sb0t-Pyxis-gui-win-x64.zip` | Aplicación de escritorio (liviana) | **Windows** 64 bits | ✅ Requiere **.NET 8 Desktop Runtime** |
-| `sb0t-Pyxis-web-win-x64.zip` | Panel web (liviano) | **Windows** 64 bits | ✅ Requiere **.NET 8 Desktop Runtime** |
-
-> ⭐ **Recomendado:** las versiones **SELF-CONTAINED** traen todo incluido — el usuario solo descomprime y ejecuta, sin instalar nada. Elegí estas si querés la experiencia más simple.
->
-> **¿No sabés si tu PC es de 64 bits?** Casi todas las computadoras modernas lo son. En Windows abrí el *Explorador de archivos* → clic derecho en *Este equipo* → *Propiedades* y mirá "Tipo de sistema".
+- **Sala de chat Ares** con soporte para clientes clásicos y clientes web/móviles modernos.
+- **Interfaz de escritorio (GUI)** para Windows, Linux y macOS (Avalonia).
+- **Panel web de administración** para gestionar la sala desde el navegador.
+- **Vrooms (salas virtuales):** cada vroom es privada; lo que pasa en una vroom no se ve en otra. En salas linkeadas, el chat se comparte solo entre usuarios que están en la **misma vroom** en ambos lados.
+- **Enlace entre servidores (linking) Hub/Leaf:** conecta varias salas entre sí para formar una red.
+- **Funciones para clientes modernos (MercuryX / inbizier):** reacciones en sala y PM, historial, manejo de mensajes personalizados (`NOSUCH2`) y otras capacidades anunciadas por el servidor cuando el cliente las soporta (con compatibilidad hacia atrás para clientes legacy).
+- **Administración:** ver usuarios conectados, expulsar/banear/desbanear, avatares, topic, niveles, captcha, filtros, registro (logs) y más.
+- **Extensiones:** soporte para extensiones (por ejemplo, clima, audio, etc.).
 
 ---
 
-## 🖥️ Cómo usarlo (guía paso a paso para principiantes)
+## Descargas (recomendado: self-contained)
 
-### Opción A: Solo la aplicación de escritorio (la más fácil)
+Las versiones listas para usar están en **Releases**:
 
-1. Descargá **`sb0t-Pyxis-gui-win-x64-SELF-CONTAINED.zip`** desde Releases (el que trae todo incluido).
-2. Hacé clic derecho sobre el `.zip` y elegí **"Extraer todo..."**.
-3. Entrá a la carpeta extraída y doble clic en **`sb0t.exe`**.
-4. En la ventana que se abre, completá los datos básicos:
-   - **Nombre**: el nombre de tu sala (ej: "Sala de Juan")
-   - **Puerto**: dejalo en `54321` si no sabés qué poner
-   - **Bot**: el nombre del bot
-5. Clic en **Iniciar servidor** (el botón grande arriba).
-6. ✅ ¡Listo! Tu sala está corriendo. Los clientes Ares pueden conectarse a tu IP en ese puerto.
+**https://github.com/lexicon06/sb0t-Pyxis/releases**
 
-> 💡 **¿Usás la versión que NO es SELF-CONTAINED?** Necesitás tener instalado el **.NET 8 Desktop Runtime** (buscá en Google "descargar .NET 8 Desktop Runtime"). La versión SELF-CONTAINED no requiere nada.
+Elegí las versiones **self-contained**: traen todo incluido (runtime .NET), no necesitás instalar Visual Studio ni .NET en la máquina donde lo vas a ejecutar. Solo descomprimir y abrir.
 
-### Opción B: Con panel web (para administrar desde el navegador)
+| Archivo (ejemplo) | Qué es | Sistema |
+|---|---|---|
+| `sb0t-Pyxis-gui-win-x64-self-contained.zip` | Aplicación de escritorio (GUI) | Windows 64 bits |
+| `sb0t-Pyxis-web-win-x64-self-contained.zip` | Panel web de administración | Windows 64 bits |
 
-El panel web te deja administrar la sala desde cualquier navegador (incluso desde el celular).
-
-1. Descargá **`sb0t-Pyxis-web-win-x64-SELF-CONTAINED.zip`** desde Releases.
-2. Extraé el `.zip` y doble clic en **`sb0t.web.exe`**.
-3. Se abre una **ventana negra (consola)** que te muestra la dirección y la contraseña:
-
-```
-==================================================
-  sb0t Pyxis web panel: http://localhost:8080
-  Login password: kl7pm2t12ecv
-==================================================
-```
-
-4. Abrí tu navegador y entrá a **http://localhost:8080**
-5. Escribí la contraseña que aparece en la consola y hacé clic en **Ingresar**.
-6. ✅ ¡Listo! Ya estás en el panel de administración.
-
-> 🔐 **Importante:** la contraseña se genera la primera vez. Podés cambiarla después en *Ajustes → Contraseña del panel web*. **No compartas esta contraseña** — es la llave de administración de tu sala.
-
-> 💡 **Para conectarte desde otro dispositivo** (ej: tu celular en la misma red Wi-Fi), en vez de `localhost` usá la IP de tu PC, por ejemplo `http://192.168.1.50:8080`. Y para que la consola muestre la contraseña de nuevo, cerrá y volvé a abrir el programa.
-
-### Opción C: Linux (servidor)
-
-Si usás **Linux** (por ejemplo un servidor o una PC con Ubuntu/Debian), descargá las versiones **`*-linux-x64-SELF-CONTAINED.zip`**.
-
-1. Descargá el `.zip` y extraelo:
-```bash
-unzip sb0t-Pyxis-web-linux-x64-SELF-CONTAINED.zip
-cd sb0t-Pyxis-web-linux-x64-SELF-CONTAINED
-```
-
-2. Dale permiso de ejecución y arrancalo:
-```bash
-chmod +x sb0t.web
-./sb0t.web
-```
-
-3. Abrí http://localhost:8080 en tu navegador y entrá con la contraseña que aparece en la terminal.
-
-> 💡 **¿Querés que corra en segundo plano?** Podés usar `nohup ./sb0t.web &` o un servicio de `systemd`. La consola muestra la contraseña la primera vez — anotala.
->
-> 💡 **Para la GUI de escritorio en Linux** usá `sb0t-Pyxis-gui-linux-x64-SELF-CONTAINED.zip`, extraé, y ejecutá `./sb0t` (necesita un entorno gráfico X11/Wayland).
+> Cada release puede incluir variantes adicionales según lo publicado. Si tu sistema es distinto, podés compilar una build self-contained para tu plataforma (ver abajo).
 
 ---
 
-## 🚀 Cómo compilar desde el código (para desarrolladores)
+## Cómo usarlo
 
-Si querés compilar el proyecto vos mismo:
+### Opción A: Aplicación de escritorio (GUI)
 
-### Requisitos
-- **.NET 8 SDK** — descargalo de https://dotnet.microsoft.com/download/dotnet/8.0
-- (Opcional) Visual Studio 2022 o VS Code
+1. Descargá el zip **self-contained** de la GUI para tu sistema desde Releases.
+2. Extraé el contenido en una carpeta.
+3. Ejecutá `sb0t.exe` (Windows) o el binario correspondiente.
+4. Configurá nombre de sala, puerto y bot, y presioná **Iniciar servidor**.
 
-### Compilar todo
+### Opción B: Panel web de administración
+
+1. Descargá el zip **self-contained** del panel web desde Releases.
+2. Extraé el contenido y ejecutá `sb0t.web.exe` (Windows) o el binario correspondiente.
+3. La consola mostrará la dirección y una contraseña de acceso, por ejemplo:
+
+   ```
+   sb0t Pyxis web panel: http://localhost:8080
+   Login password: ********
+   ```
+
+4. Abrí la URL en tu navegador e ingresá con esa contraseña.
+5. Cambiá la contraseña del panel en *Ajustes* cuando puedas. Para acceder desde otro dispositivo en tu red, usá la IP de la máquina en lugar de `localhost`.
+
+> No inicies la sala desde la GUI y desde el panel web al mismo tiempo (el puerto quedará ocupado). Ambos comparten los mismos datos.
+
+### Linux / macOS
+
+Podés usar los binarios publicados para tu plataforma (si están disponibles en el release) o compilar una versión self-contained:
+
 ```bash
-dotnet build sb0t5.sln
+# Ejemplo: GUI en Linux x64
+dotnet publish gui/gui.csproj -c Release -r linux-x64 --self-contained true -o out/gui-linux
+chmod +x out/gui-linux/sb0t
+
+# Ejemplo: panel web en Linux x64
+dotnet publish sb0t.web/sb0t.web.csproj -c Release -r linux-x64 --self-contained true -o out/web-linux
+chmod +x out/web-linux/sb0t.web
 ```
 
-### Ejecutar la aplicación de escritorio
+En macOS, reemplazá `linux-x64` por `osx-x64` (Intel) u `osx-arm64` (Apple Silicon), según corresponda.
+
+---
+
+## Compilar desde el código
+
+Requisitos: **.NET 8 SDK** (https://dotnet.microsoft.com/download/dotnet/8.0).
+
 ```bash
+# Compilar todo
+dotnet build sb0t5.sln -c Release
+
+# Ejecutar GUI o panel web en desarrollo
 dotnet run --project gui
-```
-
-### Ejecutar el panel web
-```bash
 dotnet run --project sb0t.web
 ```
-Después abrí http://localhost:8080 en el navegador.
 
-### Publicar una versión (para Releases)
+Publicar builds self-contained (sin dependencias externas):
 
-**Versión SELF-CONTAINED** (recomendada — el usuario no necesita instalar nada):
-
-Windows:
 ```bash
-# Aplicación de escritorio para Windows 64 bits
-dotnet publish gui -c Release -r win-x64 --self-contained true -o out/gui
+# Windows x64 - GUI
+dotnet publish gui/gui.csproj -c Release -r win-x64 --self-contained true -o out/gui-win
 
-# Panel web para Windows 64 bits
-dotnet publish sb0t.web -c Release -r win-x64 --self-contained true -o out/web
+# Windows x64 - Panel web
+dotnet publish sb0t.web/sb0t.web.csproj -c Release -r win-x64 --self-contained true -o out/web-win
 ```
 
-Linux:
-```bash
-# Aplicación de escritorio para Linux 64 bits
-dotnet publish gui -c Release -r linux-x64 --self-contained true -o out/gui-linux
-
-# Panel web para Linux 64 bits
-dotnet publish sb0t.web -c Release -r linux-x64 --self-contained true -o out/web-linux
-```
-
-**Versión framework-dependent** (más liviana — requiere .NET 8 Runtime instalado):
-```bash
-dotnet publish gui -c Release -r win-x64 --self-contained false -o out/gui-fd
-dotnet publish sb0t.web -c Release -r win-x64 --self-contained false -o out/web-fd
-```
-
-Comprimí cada carpeta `out/...` en un `.zip` y subilos a GitHub Releases. (En Linux también podés usar `tar czf out.tar.gz out/`.)
-
-> 💡 También funciona en macOS: cambiá `win-x64` / `linux-x64` por `osx-x64`.
+Comprimí cada carpeta de salida en un `.zip` para distribuirla.
 
 ---
 
-## 📁 ¿Dónde se guardan los datos?
+## Dónde se guardan los datos
 
-Todo se guarda en una carpeta de datos de tu usuario:
+La configuración y los datos se guardan en la carpeta de datos del usuario:
 
-| Sistema | Ruta |
+| Sistema | Ruta aproximada |
 |---|---|
 | Windows | `%APPDATA%\sb0t\sb0t\` |
-| Linux/macOS | `~/.config/sb0t/sb0t/` (o similar) |
+| Linux / macOS | `~/.config/sb0t/sb0t/` (según entorno) |
 
-Ahí vas a encontrar:
-- `settings.json` — toda la configuración de la sala
-- `Dat/` — cuentas, bans, ignores (base de datos)
-- `Avatars/` — los avatares del servidor y por defecto
-- `serverlog.txt` — el registro del servidor
+Ahí vas a encontrar, entre otros: `settings.json` (configuración), `Dat/` (cuentas, bans, ignores), `Avatars/`, y registros del servidor.
 
-> ⚠️ **Antes de actualizar o reinstalar**, guardate una copia de esa carpeta. Así no perdés tu configuración, bans ni cuentas.
+> Antes de actualizar o reinstalar, hacé una copia de esa carpeta para no perder configuración, bans ni cuentas.
 
 ---
 
-## 🌐 Trabajo en conjunto: escritorio + web al mismo tiempo
+## Seguridad básica
 
-¿Sabías que la aplicación de escritorio y el panel web **comparten los mismos datos**? Podés:
-
-1. Iniciar la sala desde la aplicación de escritorio.
-2. Y al mismo tiempo abrir el panel web para expulsar, banear y ver los logs.
-
-Ambos programas leen y escriben los mismos archivos, así que ves todo sincronizado. Solo tené cuidado de **no iniciar la sala desde los dos a la vez** (el puerto ya estará ocupado).
+- Cambiá la contraseña del panel web luego del primer inicio.
+- No expongas el panel web a Internet si no es necesario.
+- Configurá la contraseña de propietario/admin de la sala para los clientes.
+- Si el servidor es público, considerá activar captcha y revisar las opciones de protección/red según tu entorno.
 
 ---
 
-## 🔒 Consejos de seguridad
+## Licencia
 
-- Cambiá la contraseña del panel web apenas puedas.
-- No expongas el puerto 8080 a Internet a menos que lo necesites.
-- La contraseña del **dueño de la sala** (la que usan los clientes Ares para ser admin) configurala en el panel: *Admin → Contraseña del propietario*.
-- Si ponés el servidor en una máquina de Internet, activá el captcha en *Avanzado* para frenar bots.
+Este proyecto se distribuye bajo la **GNU Affero General Public License v3.0 (AGPL-3.0)**. Ver [LICENSE](LICENSE).
 
 ---
 
-## 🗂️ Versión original (referencia)
-
-La GUI original de Windows (WPF, .NET Framework 4.7.2, con configuración en el Registro de Windows) está preservada como referencia histórica en [`gui/legacy_wpf`](gui/legacy_wpf). No forma parte del build actual — la GUI Avalonia la reemplaza.
-
----
-
-## 📄 Licencia
-
-Este proyecto usa la **GNU Affero General Public License v3.0 (AGPL-3.0)**. Mirá el archivo [LICENSE](LICENSE) para más detalles.
-
----
-
-¡Gracias por usar **sb0t Pyxis**! ❤️ Si tenés dudas, abrí un *Issue* en GitHub.
+Proyecto mantenido como **sb0t Pyxis**. Para reportes o sugerencias, abrí un *Issue* en GitHub.
