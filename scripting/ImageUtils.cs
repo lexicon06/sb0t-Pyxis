@@ -19,6 +19,7 @@
 using System;
 using System.IO;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace scripting
@@ -71,6 +72,73 @@ namespace scripting
                 {
                     image.SaveAsJpeg(out_ms);
                     return out_ms.ToArray();
+                }
+            }
+        }
+
+        // Genera el JPEG (para cb0t/Ares, sin alpha) y, si la imagen tiene
+        // transparencia, tambien el PNG con alpha (para inbizier web/mobile).
+        public static void ToSized(byte[] raw, int img_x, int img_y, out byte[] jpeg, out byte[] png)
+        {
+            jpeg = null;
+            png = null;
+
+            using (MemoryStream ms = new MemoryStream(raw))
+            using (Image<Rgba32> image = Image.Load<Rgba32>(ms))
+            {
+                image.Mutate(x => x.Resize(new ResizeOptions
+                {
+                    Size = new Size(img_x, img_y),
+                    Mode = ResizeMode.Stretch
+                }));
+
+                bool hasAlpha = false;
+                image.ProcessPixelRows(a =>
+                {
+                    for (int y = 0; y < a.Height && !hasAlpha; y++)
+                    {
+                        Span<Rgba32> row = a.GetRowSpan(y);
+                        for (int x = 0; x < row.Length; x++)
+                            if (row[x].A < 255)
+                            {
+                                hasAlpha = true;
+                                break;
+                            }
+                    }
+                });
+
+                // PNG con alpha (para web/mobile)
+                if (hasAlpha)
+                    using (MemoryStream png_ms = new MemoryStream())
+                    {
+                        image.SaveAsPng(png_ms);
+                        png = png_ms.ToArray();
+                    }
+
+                // JPEG (para cb0t/Ares): aplanar sobre blanco respetando el alpha
+                image.ProcessPixelRows(src =>
+                {
+                    for (int y = 0; y < src.Height; y++)
+                    {
+                        Span<Rgba32> row = src.GetRowSpan(y);
+
+                        for (int x = 0; x < row.Length; x++)
+                        {
+                            Rgba32 p = row[x];
+                            int a = p.A;
+                            row[x] = new Rgba32(
+                                (byte)((p.R * a + 255 * (255 - a)) / 255),
+                                (byte)((p.G * a + 255 * (255 - a)) / 255),
+                                (byte)((p.B * a + 255 * (255 - a)) / 255),
+                                255);
+                        }
+                    }
+                });
+
+                using (MemoryStream out_ms = new MemoryStream())
+                {
+                    image.SaveAsJpeg(out_ms);
+                    jpeg = out_ms.ToArray();
                 }
             }
         }

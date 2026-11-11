@@ -31,7 +31,7 @@ namespace core.LinkLeaf
         private Socket Sock { get; set; }
         private bool CanReconnect { get; set; }
 
-        private List<byte> data_in = new List<byte>();
+        private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
         private int socket_health = 0;
 
@@ -167,6 +167,7 @@ namespace core.LinkLeaf
 
                         Events.LinkError(LinkError.BadProtocol);
                         ServerCore.Log("packet read fail from hub " + packet.Msg, e);
+                        ServerLog.ChannelError("link", "hub protocol error, dropping link (msg " + packet.Msg + ")", e);
 
                         if (was_linked)
                             this.ClearUserlist();
@@ -190,6 +191,7 @@ namespace core.LinkLeaf
                     else this.Busy = false;
                     
                     Events.LinkError(LinkError.RemoteDisconnect);
+                    ServerLog.Channel("link", "remote disconnected by hub (unlink_fire=" + unlink_fire + ")");
 
                     if (unlink_fire)
                     {
@@ -211,6 +213,7 @@ namespace core.LinkLeaf
                         else this.Busy = false;
 
                         Events.LinkError(LinkError.HandshakeTimeout);
+                        ServerLog.Channel("link", "handshake timeout waiting for HubAck");
                     }
                 }
                 else if (this.LoginPhase == LinkLogin.Ready)
@@ -233,6 +236,7 @@ namespace core.LinkLeaf
                         else this.Busy = false;
 
                         Events.LinkError(LinkError.PingTimeout);
+                        ServerLog.Channel("link", "PING TIMEOUT: no pong from hub for 240s, dropping link");
                         this.ClearUserlist();
                         Events.Unlinked();
                     }
@@ -240,30 +244,113 @@ namespace core.LinkLeaf
             }
         }
 
-        private void SendReceive()
+        private byte[] out_scratch = new byte[32768];
+        private byte[] out_pending = null;
+        private int out_pending_offset = 0;
+        private byte[] recv_buffer = new byte[8192];
+
+        private bool FlushPending()
         {
-            while (this.data_out.Count > 0)
+            if (this.out_pending == null)
+                return true;
+
+            while (this.out_pending_offset < this.out_pending.Length)
             {
                 try
                 {
-                    byte[] packet;
+                    int sent = this.Sock.Send(this.out_pending, this.out_pending_offset,
+                        this.out_pending.Length - this.out_pending_offset, SocketFlags.None);
 
-                    if (this.data_out.TryPeek(out packet))
-                    {
-                        this.Sock.Send(packet);
+                    if (sent <= 0)
+                        return false;
 
-                        if (!this.Local)
-                            Stats.DataSent += (ulong)packet.Length;
+                    if (!this.Local)
+                        Stats.DataSent += (ulong)sent;
 
-                        while (!this.data_out.TryDequeue(out packet))
-                            continue;
-                    }
-                    else break;
+                    this.out_pending_offset += sent;
                 }
-                catch { break; }
+                catch { return false; }
             }
 
-            byte[] buffer = new byte[8192];
+            this.out_pending = null;
+            this.out_pending_offset = 0;
+            return true;
+        }
+
+        private void FlushSend()
+        {
+            if (!this.FlushPending())
+                return;
+
+            while (this.data_out.Count > 0)
+            {
+                byte[] packet;
+                int count = 0;
+
+                while (this.data_out.Count > 0 && this.data_out.TryPeek(out packet))
+                {
+                    if (packet == null)
+                    {
+                        this.data_out.TryDequeue(out packet);
+                        continue;
+                    }
+
+                    if (packet.Length > this.out_scratch.Length || count + packet.Length > this.out_scratch.Length)
+                        break;
+
+                    this.data_out.TryDequeue(out packet);
+                    Buffer.BlockCopy(packet, 0, this.out_scratch, count, packet.Length);
+                    count += packet.Length;
+                }
+
+                if (count == 0)
+                {
+                    if (!this.data_out.TryDequeue(out packet) || packet == null)
+                        break;
+
+                    this.out_pending = packet;
+                    this.out_pending_offset = 0;
+
+                    if (!this.FlushPending())
+                        return;
+
+                    continue;
+                }
+
+                int offset = 0;
+
+                while (offset < count)
+                {
+                    try
+                    {
+                        int sent = this.Sock.Send(this.out_scratch, offset, count - offset, SocketFlags.None);
+
+                        if (sent <= 0)
+                            break;
+
+                        if (!this.Local)
+                            Stats.DataSent += (ulong)sent;
+
+                        offset += sent;
+                    }
+                    catch { break; }
+                }
+
+                if (offset < count)
+                {
+                    this.out_pending = new byte[count - offset];
+                    Buffer.BlockCopy(this.out_scratch, offset, this.out_pending, 0, count - offset);
+                    this.out_pending_offset = 0;
+                    return;
+                }
+            }
+        }
+
+        private void SendReceive()
+        {
+            this.FlushSend();
+
+            byte[] buffer = this.recv_buffer;
             int received = 0;
             SocketError e = SocketError.Success;
 
@@ -275,7 +362,7 @@ namespace core.LinkLeaf
             else
             {
                 this.socket_health = 0;
-                this.data_in.AddRange(buffer.Take(received));
+                this.data_in.AddRange(new ArraySegment<byte>(buffer, 0, received));
 
                 if (!this.Local)
                     Stats.DataReceived += (ulong)received;
@@ -294,6 +381,8 @@ namespace core.LinkLeaf
             this.HubName = Settings.Name;
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
+            this.Sock.NoDelay = true;
+            ServerLog.Channel("link", "hub mode: connecting to self on port " + Settings.Port + " [relay v24]");
 
             try
             {
@@ -343,6 +432,8 @@ namespace core.LinkLeaf
             this.HubName = obj.Name;
             this.Sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.Sock.Blocking = false;
+            this.Sock.NoDelay = true;
+            ServerLog.Channel("link", "connecting to hub '" + obj.Name + "' at " + obj.IP + ":" + obj.Port + " [relay v24]");
 
             try
             {
@@ -426,16 +517,19 @@ namespace core.LinkLeaf
                 if (this.data_in.Count < 3)
                     return null;
 
-                ushort size = BitConverter.ToUInt16(this.data_in.ToArray(), 0);
+                ushort size = (ushort)(this.data_in[0] | (this.data_in[1] << 8));
                 byte id = this.data_in[2];
 
                 if (this.data_in.Count >= (size + 3))
                 {
-                    byte[] data = this.data_in.GetRange(3, size).ToArray();
+                    byte[] data = new byte[size];
+                    this.data_in.CopyTo(3, data, 0, size);
                     this.data_in.RemoveRange(0, (size + 3));
                     core.LinkHub.LinkPacket packet = new core.LinkHub.LinkPacket();
                     packet.Msg = (core.LinkHub.LinkMsg)data[2];
-                    packet.Packet = new TCPPacketReader(data.Skip(3).ToArray());
+                    byte[] payload = new byte[size - 3];
+                    Buffer.BlockCopy(data, 3, payload, 0, size - 3);
+                    packet.Packet = new TCPPacketReader(payload);
                     return packet;
                 }
 

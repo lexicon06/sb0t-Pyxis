@@ -1,0 +1,88 @@
+========================================================
+  WeatherExtension - tarjetas de clima para sb0t Pyxis
+========================================================
+
+QUE ES
+------
+Extension DLL (.NET) para sb0t Pyxis. Cuando un usuario escribe
+en la sala:
+
+    iclima <ciudad>
+
+la extension:
+  1) ubica la ciudad (geocoding verificado, Unicode),
+  2) obtiene el clima actual,
+  3) busca una foto real de la ciudad,
+  4) compone la tarjeta 800x400 en C# (ImageSharp),
+  5) la manda como scribble a la sala y a las linkeadas.
+Salida final: JPEG.
+
+SERVICIOS (gratis, SIN API KEY)
+-------------------------------
+  - Ciudad:  Nominatim / OpenStreetMap  (nominatim.openstreetmap.org)
+  - Clima:   Open-Meteo                  (api.open-meteo.com)
+  - Icono:   cdn.weatherapi.com (asset publico)
+  - Foto:    Bing (th.bing.com), fallback Wikipedia
+
+No hace falta ninguna clave. Soporta Unicode (acentos, enie, etc.).
+La foto se busca con el nombre verificado que devuelve el geocoder:
+"real photo of <ciudad> <region|pais>".
+
+A quien le llega:
+  - inbizier web / mobile -> Scribble2 (base64)
+  - cb0t                   -> Scribble (bytes)
+  - Ares comun             -> no renderiza scribbles (limitacion del cliente)
+
+SELF-CONTAINED
+--------------
+extension.dll ya trae ADENTRO: SixLabors.ImageSharp, Drawing, Fonts y las
+fuentes Inter. No hay DLLs sueltas: solo extension.dll + weather.json.
+
+--------------------------------------------------------
+REQUISITOS PARA COMPILAR
+--------------------------------------------------------
+1. .NET 8 SDK (o superior).
+2. El repo de sb0t Pyxis (para referenciar "iconnect").
+3. Internet la primera vez (NuGet + ILRepack).
+
+--------------------------------------------------------
+COMPILAR
+--------------------------------------------------------
+Recomendado:
+
+    cd demoExtension\WeatherExtension
+    powershell -ExecutionPolicy Bypass -File .\build.ps1
+
+Resultado: bin\extension.dll (self-contained, ~4.2 MB)
+
+--------------------------------------------------------
+INSTALAR EN EL SERVER
+--------------------------------------------------------
+1. Copia a <Raiz del server>\Extensions\WeatherExtension\:
+     extension.dll
+     weather.json
+2. Cargala desde la pestana "Extensions" de la GUI (o autorun).
+3. Probar en la sala:  iclima Veracruz
+
+--------------------------------------------------------
+CONFIG: weather.json (opcional)
+--------------------------------------------------------
+{
+  "trigger": "iclima",
+  "photo": true,
+  "cooldownSeconds": 5,
+  "cacheMinutes": 5
+}
+
+  trigger         -> palabra que dispara el clima (default "iclima").
+  photo           -> true/false. Busca foto de la ciudad para el fondo.
+  cooldownSeconds -> segundos minimos entre pedidos de un mismo usuario.
+  cacheMinutes    -> tiempo que se reusa la misma tarjeta en memoria.
+
+--------------------------------------------------------
+NOTAS
+--------------------------------------------------------
+- La foto de ciudad se cachea en
+  Extensions\WeatherExtension\cache\photos (se crea sola).
+- Nominatim pide <= 1 request/seg: la extension lo respeta.
+- Requiere salida a internet del server.

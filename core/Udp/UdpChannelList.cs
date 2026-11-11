@@ -119,38 +119,43 @@ namespace core.Udp
 
         private static void SaveLocal()
         {
-            CreateDatabase();
-
-            using (SqliteConnection connection = new SqliteConnection("Data Source=" + DataPath))
+            try
             {
-                connection.Open();
-                UdpChannelItem[] rooms = primary_list.ToArray();
+                CreateDatabase();
 
-                foreach (UdpChannelItem item in rooms)
+                using (SqliteConnection connection = new SqliteConnection("Data Source=" + DataPath))
                 {
-                    String query = @"insert into roomsearch (name, topic, version, ip, port, users, language) 
-                                 values (@name, @topic, @version, @ip, @port, @users, @language)";
+                    connection.Open();
 
-                    using (SqliteCommand command = new SqliteCommand(query, connection))
+                    using (SqliteCommand clear = new SqliteCommand("delete from roomsearch", connection))
+                        clear.ExecuteNonQuery();
+
+                    UdpChannelItem[] rooms = primary_list.ToArray();
+
+                    foreach (UdpChannelItem item in rooms)
                     {
-                        command.Parameters.Add(new SqliteParameter("@name", item.Name));
-                        command.Parameters.Add(new SqliteParameter("@topic", item.Topic));
-                        command.Parameters.Add(new SqliteParameter("@version", item.Version));
-                        command.Parameters.Add(new SqliteParameter("@ip", item.IP.ToString()));
-                        command.Parameters.Add(new SqliteParameter("@port", (int)item.Port));
-                        command.Parameters.Add(new SqliteParameter("@users", (int)item.Users));
-                        command.Parameters.Add(new SqliteParameter("@language", (int)item.Language));
-                        command.ExecuteNonQuery();
+                        String query = @"insert into roomsearch (name, topic, version, ip, port, users, language) 
+                                     values (@name, @topic, @version, @ip, @port, @users, @language)";
+
+                        using (SqliteCommand command = new SqliteCommand(query, connection))
+                        {
+                            command.Parameters.Add(new SqliteParameter("@name", item.Name));
+                            command.Parameters.Add(new SqliteParameter("@topic", item.Topic));
+                            command.Parameters.Add(new SqliteParameter("@version", item.Version));
+                            command.Parameters.Add(new SqliteParameter("@ip", item.IP.ToString()));
+                            command.Parameters.Add(new SqliteParameter("@port", (int)item.Port));
+                            command.Parameters.Add(new SqliteParameter("@users", (int)item.Users));
+                            command.Parameters.Add(new SqliteParameter("@language", (int)item.Language));
+                            command.ExecuteNonQuery();
+                        }
                     }
                 }
             }
+            catch { }
         }
 
         private static void CreateDatabase()
         {
-            if (File.Exists(DataPath))
-                File.Delete(DataPath);
-
             using (SqliteConnection connection = new SqliteConnection("Data Source=" + DataPath))
             {
                 connection.Open();

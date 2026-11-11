@@ -16,10 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System;
 using System.IO;
 
 namespace core
@@ -28,24 +25,18 @@ namespace core
     {
         public static void WriteLine(String text)
         {
-            if (Settings.Get<bool>("logging"))
-            {
-                try
-                {
-                    DateTime d = DateTime.Now;
+            if (!Settings.Get<bool>("logging"))
+                return;
 
-                    String path = DataPaths.ChatLogs;
+            DateTime d = DateTime.Now;
+            String path = Path.Combine(DataPaths.ChatLogs, d.Day + " " + d.Month + " " + d.Year + ".txt");
 
-                    if (!Directory.Exists(path))
-                        Directory.CreateDirectory(path);
+            FileLogQueue.Enqueue(path, d.ToShortTimeString() + " " + text);
+        }
 
-                    path += ("\\" + d.Day + " " + d.Month + " " + d.Year + ".txt");
-
-                    using (StreamWriter writer = File.Exists(path) ? File.AppendText(path) : File.CreateText(path))
-                        writer.WriteLine(d.ToShortTimeString() + " " + text);
-                }
-                catch { }
-            }
+        public static void Close()
+        {
+            FileLogQueue.Shutdown();
         }
     }
 }

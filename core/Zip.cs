@@ -59,22 +59,18 @@ namespace core
         {
             try
             {
-                byte[] r = null;
-
                 using (MemoryStream ms = new MemoryStream(data))
                 using (Stream s = new InflaterInputStream(ms))
+                using (MemoryStream output = new MemoryStream())
                 {
-                    List<byte> list = new List<byte>();
-                    int count = 0;
                     byte[] b = new byte[8192];
+                    int count = 0;
 
-                    while ((count = s.Read(b, 0, 8192)) > 0)
-                        list.AddRange(b.Take(count));
+                    while ((count = s.Read(b, 0, b.Length)) > 0)
+                        output.Write(b, 0, count);
 
-                    r = list.ToArray();
+                    return output.ToArray();
                 }
-
-                return r;
             }
             catch { }
 

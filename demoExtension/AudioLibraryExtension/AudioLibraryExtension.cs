@@ -1079,15 +1079,15 @@ namespace AudioLibraryExtension
                         return;
                     if (user.Vroom != senderVroom)
                         return;
-                    if (!(user.IsInbizierWeb || user.IsInbizierMobile))
+
+                    bool linked = user.Link != null && user.Link.IsLinked;
+                    bool inbizier = user.IsInbizierWeb || user.IsInbizierMobile;
+
+                    if (!linked && !inbizier)
                         return;
 
-                    var audioMethod = user.GetType().GetMethod("Audio", new[] { typeof(string), typeof(string) });
-                    if (audioMethod != null && user.GetType().GetProperty("Extended")?.GetValue(user) is bool extended && extended)
-                    {
-                        audioMethod.Invoke(user, new object[] { senderName, base64Audio });
-                        sentCount++;
-                    }
+                    user.Audio(senderName, base64Audio);
+                    sentCount++;
                 });
 
                 if (sentCount == 0)

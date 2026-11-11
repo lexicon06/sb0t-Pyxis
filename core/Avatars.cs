@@ -27,13 +27,18 @@ namespace core
     public class Avatars
     {
         private static byte[] server_avatar { get; set; }
+        private static byte[] server_avatar_full { get; set; }
         private static byte[] default_avatar { get; set; }
+        // Version sin escalar (o mas grande) del avatar default, para inbizier web/mobile,
+        // que lo muestran mas grande que el 48x48 de Ares.
+        private static byte[] default_avatar_full { get; set; }
 
         public static void UpdateServerAvatar(byte[] data)
         {
             try
             {
-                server_avatar = Scale(data);
+                server_avatar = Scale(data);        // 48x48 para Ares
+                server_avatar_full = data;          // original (ej. 500x500) para web/mobile
             }
             catch { return; }
 
@@ -46,12 +51,26 @@ namespace core
         {
             try
             {
-                default_avatar = Scale(data);
+                default_avatar = Scale(data);       // 48x48 para Ares
+                default_avatar_full = data;         // original (ej. 90x90) para web/mobile
             }
             catch { return; }
 
             if (UserPool.AUsers != null)
                 UserPool.AUsers.ForEachWhere(x => x.Avatar = default_avatar, x => x.DefaultAvatar);
+
+            // inbizier web/mobile: aplicar el default a los que no subieron avatar.
+            if (UserPool.WUsers != null)
+                UserPool.WUsers.ForEachWhere(x =>
+                {
+                    x.Avatar = default_avatar;
+                    x.FullAvatar = FullDefault;
+
+                    UserPool.WUsers.ForEachWhere(y =>
+                        y.QueuePacket(ib0t.WebOutbound.AvatarTo(y, x.Name, FullDefault)),
+                        y => y.LoggedIn && y.Extended && y.Vroom == x.Vroom);
+                },
+                x => x.DefaultAvatar || !x.AvatarReceived);
         }
 
         internal static byte[] Server(AresClient client)
@@ -72,7 +91,7 @@ namespace core
             if (server_avatar == null)
                 return ib0t.WebOutbound.AvatarClearTo(client, Settings.Get<String>("bot"));
             else
-                return ib0t.WebOutbound.AvatarTo(client, Settings.Get<String>("bot"), server_avatar);
+                return ib0t.WebOutbound.AvatarTo(client, Settings.Get<String>("bot"), FullServer);
         }
 
         public static byte[] GetServerAvatar()
@@ -90,7 +109,11 @@ namespace core
             {
                 string serverFile = Path.Combine(DataPaths.Avatars, "server");
                 if (File.Exists(serverFile))
-                    server_avatar = Scale(File.ReadAllBytes(serverFile));
+                {
+                    byte[] raw = File.ReadAllBytes(serverFile);
+                    server_avatar = Scale(raw);     // 48x48 para Ares
+                    server_avatar_full = raw;       // original (ej. 500x500) para web/mobile
+                }
             }
             catch { }
 
@@ -98,7 +121,11 @@ namespace core
             {
                 string defaultFile = Path.Combine(DataPaths.Avatars, "default");
                 if (File.Exists(defaultFile))
-                    default_avatar = Scale(File.ReadAllBytes(defaultFile));
+                {
+                    byte[] raw = File.ReadAllBytes(defaultFile);
+                    default_avatar = Scale(raw);    // 48x48 para Ares
+                    default_avatar_full = raw;      // original (ej. 90x90) para web/mobile
+                }
             }
             catch { }
         }
@@ -117,6 +144,23 @@ namespace core
             x => !x.AvatarReceived &&
                  x.LoggedIn &&
                  time > (x.AvatarTimeout + 10000));
+
+            // Clientes inbizier web/mobile (ib0t): tambien reciben el avatar default
+            // si no subieron uno propio. Antes solo se aplicaba a clientes Ares.
+            UserPool.WUsers.ForEachWhere(x =>
+            {
+                x.Avatar = default_avatar;
+                x.FullAvatar = FullDefault;
+                x.AvatarReceived = true;
+                x.DefaultAvatar = true;
+
+                UserPool.WUsers.ForEachWhere(y =>
+                    y.QueuePacket(ib0t.WebOutbound.AvatarTo(y, x.Name, FullDefault)),
+                    y => y.LoggedIn && y.Extended && y.Vroom == x.Vroom);
+            },
+            x => !x.AvatarReceived &&
+                 x.LoggedIn &&
+                 time > (x.AvatarTimeout + 10000));
         }
 
         private static byte[] Default
@@ -127,6 +171,31 @@ namespace core
                     return new byte[] { };
                 else
                     return default_avatar;
+            }
+        }
+
+        // Version grande del default para web/mobile: el original si existe,
+        // si no el 48x48 de Ares.
+        internal static byte[] FullDefault
+        {
+            get
+            {
+                if (default_avatar_full != null && default_avatar_full.Length > 0)
+                    return default_avatar_full;
+
+                return Default;
+            }
+        }
+
+        // Version grande del avatar del bot/servidor para web/mobile.
+        internal static byte[] FullServer
+        {
+            get
+            {
+                if (server_avatar_full != null && server_avatar_full.Length > 0)
+                    return server_avatar_full;
+
+                return server_avatar;
             }
         }
 

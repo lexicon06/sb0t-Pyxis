@@ -57,6 +57,106 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
+        // Relay a local user's public text to the linked users, EXACTLY like the
+        // community script does: Users.linked(...) -> per-user print, with
+        // customName+text when the sender has a custom name, otherwise the server
+        // line "\x03""01"name"> ""\x03""12"text. Delivered as MSG_CHAT_SERVER_NOSUCH
+        // (print virtual) on the other side, so it always renders.
+        // Role decided ONLY by configuration (link_mode == Hub). A leaf never takes the
+        // hub path, so leaf -> hub always goes through the link.
+        internal static bool IsHub()
+        {
+            return Settings.Get<int>("link_mode") == (int)LinkHub.LinkMode.Hub;
+        }
+
+        // Custom data broadcast (audio/voice clips and other custom client data) for a
+        // whole room. The hub delivers straight to each leaf; a leaf uses the link.
+        public static void RelayCustomDataAll(ushort vroom, String sender, String ident, byte[] data)
+        {
+            if (IsHub())
+            {
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    leaf.SendPacket(LinkHub.HubOutbound.HubCustomDataAll(leaf, vroom, sender, ident, data));
+                }
+            }
+            else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+                ServerCore.Linker.SendPacket(LeafCustomDataAll(ServerCore.Linker, vroom, sender, ident, data));
+        }
+
+        public static void RelayCustomDataTo(String target, String sender, String ident, byte[] data)
+        {
+            if (IsHub())
+            {
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    if (leaf.Users.Any(x => x.Name == target))
+                        leaf.SendPacket(LinkHub.HubOutbound.HubCustomDataTo(leaf, sender, target, ident, data));
+                }
+            }
+            else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLogin.Ready)
+            {
+                IClient linked = ServerCore.Linker.FindUser(x => x.Name == target && x.CustomClient);
+
+                if (linked != null)
+                    ServerCore.Linker.SendPacket(LeafCustomDataTo(ServerCore.Linker, linked.IUser.Link.Ident,
+                        sender, target, ident, data));
+            }
+        }
+
+        public static int RelayPublicText(String sender, String customName, String text, IClient notify = null)
+        {
+            if (String.IsNullOrEmpty(sender) || text == null)
+                return 0;
+
+            customName = customName ?? String.Empty;
+
+            // vroom del emisor: el relay respeta la privacidad de las vrooms.
+            ushort vroom = notify != null ? notify.Vroom : (ushort)0;
+
+            int sent = 0;
+
+            try
+            {
+                bool link_ready = ServerCore.Linker != null && ServerCore.Linker.Busy &&
+                    ServerCore.Linker.LoginPhase == LinkLogin.Ready;
+
+                // (A) through the link: leaf -> hub (the hub then forwards to its local
+                // users and to sibling leaves). This is the original mechanism.
+                if (link_ready)
+                {
+                    ServerCore.Linker.SendPacket(LeafPublicText(ServerCore.Linker, sender, customName, text, vroom));
+                    sent++;
+                }
+
+                // (B) hub -> each connected leaf directly (does not use the hub self-link).
+                foreach (LinkHub.Leaf leaf in LinkHub.LeafPool.Leaves)
+                {
+                    if (leaf.Local || leaf.LoginPhase != LinkHub.LinkLogin.Ready)
+                        continue;
+
+                    leaf.SendPacket(LinkHub.HubOutbound.HubPublicToLeaf(leaf, sender, customName, text, vroom));
+                    sent++;
+                }
+            }
+            catch (Exception e)
+            {
+                // Never let a bad relay drop the local message / the link.
+                ServerLog.ChannelError("link", "relay text failed (ignored)", e);
+            }
+
+            ServerLog.Channel("link", "relay text: '" + sender + "' custom='" + customName +
+                "' len=" + text.Length + " -> " + sent);
+
+            return sent;
+        }
+
         public static byte[] LeafUserlistItem(LinkClient x, IClient client)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
@@ -129,15 +229,55 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafAvatar(LinkClient x, IClient client)
+        public static byte[] LeafAvatar(LinkClient x, String name, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
-            packet.WriteString(x, client.Name);
-            packet.WriteBytes(client.Avatar);
+            packet.WriteString(x, name);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AVATAR);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static void SendAvatar(LinkClient x, IClient client)
+        {
+            byte[] data = null;
+
+            ib0t.ib0tClient web = client as ib0t.ib0tClient;
+
+            if (web != null)
+                data = web.FullAvatar;
+
+            if (data == null || data.Length == 0)
+                data = client.Avatar;
+
+            if (data == null)
+                data = new byte[] { };
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            if (total > ushort.MaxValue)
+                total = ushort.MaxValue;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(LeafAvatar(x, client.Name, (ushort)total, (ushort)i, chunk));
+            }
         }
 
         public static byte[] LeafPersonalMessage(LinkClient x, IClient client)
@@ -248,32 +388,158 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafScribbleUser(LinkClient x, LinkUser target, String sender, int height, byte[] img)
+        public static byte[] LeafScribbleUser(LinkClient x, LinkUser target, String sender, uint height, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteUInt32(target.LinkCredentials.Ident);
             packet.WriteString(x, target.Name);
             packet.WriteString(x, sender);
-            packet.WriteUInt32((uint)height);
-            packet.WriteBytes(img);
+            packet.WriteUInt32(height);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_SCRIBBLE_USER);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafScribbleLeaf(LinkClient x, uint target_leaf, String sender, int height, byte[] img)
+        public static void SendScribbleUser(LinkClient x, LinkUser target, String sender, int height, byte[] img)
+        {
+            byte[] data = img ?? new byte[0];
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(LeafScribbleUser(x, target, sender, (uint)height, (ushort)total, (ushort)i, chunk));
+            }
+        }
+
+        public static byte[] LeafScribbleLeaf(LinkClient x, uint target_leaf, String sender, uint height, ushort total, ushort index, byte[] chunk)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteUInt32(target_leaf);
             packet.WriteString(x, sender);
-            packet.WriteUInt32((uint)height);
-            packet.WriteBytes(img);
+            packet.WriteUInt32(height);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_SCRIBBLE_LEAF);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
+
+        public static void SendScribbleLeaf(LinkClient x, uint target_leaf, String sender, int height, byte[] img)
+        {
+            byte[] data = img ?? new byte[0];
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(LeafScribbleLeaf(x, target_leaf, sender, (uint)height, (ushort)total, (ushort)i, chunk));
+            }
+        }
+
+        public static byte[] LeafAudio(LinkClient x, LinkUser target, String sender, ushort total, ushort index, String chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt32(target.Link.Ident);
+            packet.WriteString(x, target.Name);
+            packet.WriteString(x, sender);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteString(x, chunk, false);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_AUDIO);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static byte[] LeafPmAudio(LinkClient x, LinkUser target, String sender, ushort total, ushort index, String chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt32(target.Link.Ident);
+            packet.WriteString(x, target.Name);
+            packet.WriteString(x, sender);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteString(x, chunk, false);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PM_AUDIO);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static byte[] LeafPmScribble(LinkClient x, LinkUser target, String sender, uint height, ushort total, ushort index, byte[] chunk)
+        {
+            TCPPacketWriter packet = new TCPPacketWriter();
+            packet.WriteUInt32(target.Link.Ident);
+            packet.WriteString(x, target.Name);
+            packet.WriteString(x, sender);
+            packet.WriteUInt32(height);
+            packet.WriteUInt16(total);
+            packet.WriteUInt16(index);
+            packet.WriteBytes(chunk);
+            byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PM_SCRIBBLE);
+            packet = new TCPPacketWriter();
+            packet.WriteBytes(buf);
+            return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
+        }
+
+        public static void SendPmScribble(LinkClient x, LinkUser target, String sender, int height, byte[] img)
+        {
+            byte[] data = img ?? new byte[0];
+
+            const int max = 40000;
+            int total = data.Length == 0 ? 1 : (data.Length + max - 1) / max;
+
+            if (total > ushort.MaxValue)
+                total = ushort.MaxValue;
+
+            for (int i = 0; i < total; i++)
+            {
+                int off = i * max;
+                int len = data.Length - off;
+
+                if (len > max) len = max;
+                if (len < 0) len = 0;
+
+                byte[] chunk = new byte[len];
+
+                if (len > 0)
+                    Buffer.BlockCopy(data, off, chunk, 0, len);
+
+                x.SendPacket(LeafPmScribble(x, target, sender, (uint)height, (ushort)total, (ushort)i, chunk));
+            }
+        }
+
 
         public static byte[] LeafAdmin(LinkClient x, IClient admin, String command, IClient target, String args)
         {
@@ -289,22 +555,25 @@ namespace core.LinkLeaf
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafPublicText(LinkClient x, String name, String text)
+        public static byte[] LeafPublicText(LinkClient x, String name, String customName, String text, ushort vroom)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
+            packet.WriteString(x, customName ?? String.Empty, false);
             packet.WriteString(x, text, false);
+            packet.WriteUInt16(vroom);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_PUBLIC_TEXT);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);
             return packet.ToAresPacket(TCPMsg.MSG_LINK_PROTO);
         }
 
-        public static byte[] LeafEmoteText(LinkClient x, String name, String text)
+        public static byte[] LeafEmoteText(LinkClient x, String name, String text, ushort vroom)
         {
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(x, name);
             packet.WriteString(x, text, false);
+            packet.WriteUInt16(vroom);
             byte[] buf = packet.ToLinkPacket(LinkHub.LinkMsg.MSG_LINK_LEAF_EMOTE_TEXT);
             packet = new TCPPacketWriter();
             packet.WriteBytes(buf);

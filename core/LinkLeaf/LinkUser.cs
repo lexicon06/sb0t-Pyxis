@@ -88,7 +88,7 @@ namespace core.LinkLeaf
         {
             if (this.CustomClient)
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                    ServerCore.Linker.SendPacket(LeafOutbound.LeafScribbleUser(ServerCore.Linker, this, sender, height, img));
+                    LeafOutbound.SendScribbleUser(ServerCore.Linker, this, sender, height, img);
         }
 
         public void Scribble2(String sender, String img, int height)
@@ -100,6 +100,71 @@ namespace core.LinkLeaf
             catch
             {
             }
+        }
+
+        public void Audio(String sender, String base64)
+        {
+            if (String.IsNullOrEmpty(base64))
+                return;
+
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+            {
+                List<String> chunks = new List<String>();
+                String rest = base64;
+
+                while (rest.Length > 16000)
+                {
+                    chunks.Add(rest.Substring(0, 16000));
+                    rest = rest.Substring(16000);
+                }
+
+                if (rest.Length > 0)
+                    chunks.Add(rest);
+
+                for (int i = 0; i < chunks.Count; i++)
+                    ServerCore.Linker.SendPacket(LeafOutbound.LeafAudio(ServerCore.Linker, this, sender,
+                        (ushort)chunks.Count, (ushort)i, chunks[i]));
+            }
+        }
+
+        public void PmAudio(String sender, String base64)
+        {
+            if (String.IsNullOrEmpty(base64))
+                return;
+
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+            {
+                List<String> chunks = new List<String>();
+                String rest = base64;
+
+                while (rest.Length > 16000)
+                {
+                    chunks.Add(rest.Substring(0, 16000));
+                    rest = rest.Substring(16000);
+                }
+
+                if (rest.Length > 0)
+                    chunks.Add(rest);
+
+                for (int i = 0; i < chunks.Count; i++)
+                    ServerCore.Linker.SendPacket(LeafOutbound.LeafPmAudio(ServerCore.Linker, this, sender,
+                        (ushort)chunks.Count, (ushort)i, chunks[i]));
+            }
+        }
+
+        public void PmScribble(String sender, String img, int height)
+        {
+            try { this.PmScribble(sender, Convert.FromBase64String(img), height); }
+            catch { }
+        }
+
+        public void PmScribble(String sender, byte[] img, int height)
+        {
+            if (img == null || img.Length == 0)
+                return;
+
+            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                LeafOutbound.SendPmScribble(ServerCore.Linker, this, sender, height, img);
         }
 
         public void Nudge(String sender)
@@ -137,6 +202,13 @@ namespace core.LinkLeaf
 
 
         public void SetAvatar(byte[] data) { this._avatar = data; this._fullavatar = data; }
+
+        // Avatar 48x48 para clientes Ares + original (posible gif animado) para web/mobile.
+        public void SetAvatar(byte[] ares, byte[] full)
+        {
+            this._avatar = ares;
+            this._fullavatar = (full == null || full.Length == 0) ? ares : full;
+        }
         private byte[] _avatar;
         private byte[] _fullavatar;
         public byte[] Avatar
@@ -264,6 +336,11 @@ namespace core.LinkLeaf
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
                     ServerCore.Linker.SendPacket(LeafOutbound.LeafIUser(ServerCore.Linker,
                         this, "pm", sender, text));
+        }
+
+        public void PM(String sender, String text, String id)
+        {
+            this.PM(sender, text);
         }
 
         public void Topic(String text)

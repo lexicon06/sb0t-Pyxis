@@ -103,7 +103,8 @@ namespace core.Extensions
             else if (client is ib0t.ib0tClient)
             {
                 ib0t.ib0tClient obj = (ib0t.ib0tClient)client;
-                obj.QueuePacket(ib0t.WebOutbound.PublicTo(obj, sender, text));
+                String mid = ib0t.MessageBuffer.NewRoomId(obj.Vroom, sender, text, false, core.Time.Now);
+                obj.QueuePacket(ib0t.WebOutbound.PublicTo(obj, sender, text, mid));
             }
             else if (client is LinkLeaf.LinkUser)
             {
@@ -125,7 +126,8 @@ namespace core.Extensions
             else if (client is ib0t.ib0tClient)
             {
                 ib0t.ib0tClient obj = (ib0t.ib0tClient)client;
-                obj.QueuePacket(ib0t.WebOutbound.EmoteTo(obj, sender, text));
+                String eid = ib0t.MessageBuffer.NewRoomId(obj.Vroom, sender, text, true, core.Time.Now);
+                obj.QueuePacket(ib0t.WebOutbound.EmoteTo(obj, sender, text, eid));
             }
             else if (client is LinkLeaf.LinkUser)
             {

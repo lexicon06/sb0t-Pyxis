@@ -140,6 +140,8 @@ namespace iconnect
         void SendEmote(String text);
         /// <summary>Send a fake PM to this user</summary>
         void PM(String sender, String text);
+        /// <summary>Send a fake PM to this user with an id</summary>
+        void PM(String sender, String text, String id);
         /// <summary>Set a virtual topic for the user</summary>
         void Topic(String text);
         /// <summary>Restore user's avatar</summary>
@@ -152,6 +154,8 @@ namespace iconnect
         void Scribble(String sender, String url);
         /// <summary>Send a base64 scribble (large images) to the user (if client supports this feature)</summary>
         void Scribble2(String sender, String img, int height);
+        /// <summary>Send a base64 audio clip to the user (if client supports this feature)</summary>
+        void Audio(String sender, String base64);
         /// <summary>Nudge the user (if client supports this feature)</summary>
         void Nudge(String sender);
         /// <summary>Get Local Endpoint</summary>

@@ -40,6 +40,7 @@
     <Compile Include="IdleManager.cs" />
     <Compile Include="IgnoreManager.cs" />
     <Compile Include="ImageUtils.cs" />
+    <Compile Include="LegacyUnicode.cs" />
     <Compile Include="LinkHub\HubOutbound.cs" />
     <Compile Include="LinkHub\Leaf.cs" />
     <Compile Include="LinkHub\LeafPool.cs" />
@@ -68,6 +69,7 @@
     <Compile Include="Helpers.cs" />
     <Compile Include="ib0t\Html5RequestEventArgs.cs" />
     <Compile Include="ib0t\ib0tClient.cs" />
+    <Compile Include="ib0t\MessageBuffer.cs" />
     <Compile Include="ib0t\WebOutbound.cs" />
     <Compile Include="ib0t\WebProcessor.cs" />
     <Compile Include="ib0t\WebSockets.cs" />
@@ -84,6 +86,10 @@
     </Compile>
     <Compile Include="Room.cs" />
     <Compile Include="ServerCore.cs" />
+    <Compile Include="ServerLog.cs" />
+    <Compile Include="AsnLookup.cs" />
+    <Compile Include="ByteBuffer.cs" />
+    <Compile Include="FileLogQueue.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="SharedFile.cs" />
     <Compile Include="SpellCheck.cs" />

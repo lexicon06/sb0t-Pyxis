@@ -169,7 +169,64 @@ namespace core.LinkLeaf
                 case LinkHub.LinkMsg.MSG_LINK_HUB_SCRIBBLE_LEAF:
                     HubScribbleLeaf(link, packet);
                     break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_AUDIO:
+                    HubAudio(link, packet);
+                    break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_PM_AUDIO:
+                    HubPmAudio(link, packet);
+                    break;
+
+                case LinkHub.LinkMsg.MSG_LINK_HUB_PM_SCRIBBLE:
+                    HubPmScribble(link, packet);
+                    break;
             }
+        }
+
+        private static Dictionary<String, AvatarChunkBuffer> scribble_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
+        private static byte[] AccumulateBlob(Dictionary<String, AvatarChunkBuffer> buffers, String key, ushort total, ushort index, byte[] chunk)
+        {
+            if (total == 0 || index >= total)
+                return null;
+
+            AvatarChunkBuffer buf;
+
+            if (!buffers.TryGetValue(key, out buf) || buf.Total != total)
+            {
+                buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                buffers[key] = buf;
+            }
+
+            if (buf.Parts[index] == null)
+            {
+                buf.Parts[index] = chunk;
+                buf.Received++;
+            }
+
+            if (buf.Received < buf.Total)
+                return null;
+
+            buffers.Remove(key);
+
+            int size = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                    size += part.Length;
+
+            byte[] full = new byte[size];
+            int offset = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                {
+                    Buffer.BlockCopy(part, 0, full, offset, part.Length);
+                    offset += part.Length;
+                }
+
+            return full;
         }
 
         private static void HubScribbleUser(LinkClient link, TCPPacketReader packet)
@@ -177,13 +234,27 @@ namespace core.LinkLeaf
             String target = packet.ReadString(link);
             String sender = packet.ReadString(link);
             int height = (int)((uint)packet);
-            byte[] img = packet;
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
+            byte[] img = AccumulateBlob(scribble_buffers, target + "|" + sender + "|" + height, total, index, chunk);
+
+            if (img == null)
+                return;
+
+            ServerLog.Channel("link", "recv-scribble " + sender + " (" + img.Length + " bytes)");
+
             AresClient ac = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
             if (ac != null)
             {
                 if (ac.CustomClient)
-                    ac.Scribble(sender, img, height);
+                {
+                    // cb0t muestra el scribble EN SALA solo si el sender es el bot
+                    // (users[0]); si no, lo muestra como PM. El autor va en el aviso.
+                    ac.SendPacket(TCPOutbound.NoSuch(ac, "\x000314--- From " + sender));
+                    ac.Scribble(Settings.Get<String>("bot"), img, height);
+                }
             }
             else
             {
@@ -199,13 +270,209 @@ namespace core.LinkLeaf
         {
             String sender = packet.ReadString(link);
             int height = (int)((uint)packet);
-            byte[] img = packet;
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
+            byte[] img = AccumulateBlob(scribble_buffers, "leaf|" + sender + "|" + height, total, index, chunk);
 
-            UserPool.AUsers.ForEachWhere(x => x.Scribble(sender, img, height),
-                x => x.LoggedIn && !x.Quarantined && x.CustomClient);
+            if (img == null)
+                return;
+
+            ServerLog.Channel("link", "recv-scribble-leaf " + sender + " (" + img.Length + " bytes)");
+
+            String bot = Settings.Get<String>("bot");
+
+            UserPool.AUsers.ForEachWhere(x =>
+            {
+                // cb0t/Ares: en sala con sender = bot (si no, lo ven como PM) + autor.
+                x.SendPacket(TCPOutbound.NoSuch(x, "\x000314--- From " + sender));
+                x.Scribble(bot, img, height);
+            },
+            x => x.LoggedIn && !x.Quarantined && x.CustomClient);
 
             UserPool.WUsers.ForEachWhere(x => x.Scribble(sender, img, height),
                 x => x.LoggedIn && !x.Quarantined && x.Extended);
+        }
+
+        private class AudioChunks
+        {
+            public ushort Total;
+            public String[] Parts;
+            public int Received;
+        }
+
+        private static Dictionary<String, AudioChunks> audio_chunks = new Dictionary<String, AudioChunks>();
+
+        private static void HubAudio(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                String target = packet.ReadString(link);
+                String sender = packet.ReadString(link);
+                ushort total = packet;
+                ushort index = packet;
+                String chunk = packet.ReadString(link);
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = target + "\u0000" + sender;
+                AudioChunks buf;
+
+                if (!audio_chunks.TryGetValue(key, out buf) || buf.Total != total)
+                {
+                    buf = new AudioChunks { Total = total, Parts = new String[total], Received = 0 };
+                    audio_chunks[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                audio_chunks.Remove(key);
+
+                StringBuilder sb = new StringBuilder();
+
+                foreach (String part in buf.Parts)
+                    sb.Append(part);
+
+                IClient client = UserPool.AUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (client == null)
+                    client = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (client != null)
+                    client.IUser.Audio(sender, sb.ToString());
+
+                ServerLog.Channel("link", "recv-audio from " + sender + " to " + target + " (" + sb.Length + " chars)");
+            }
+            catch (Exception e)
+            {
+                // Audio is best-effort: a bad audio packet must never drop the link.
+                ServerLog.ChannelError("link", "audio relay failed (ignored)", e);
+            }
+        }
+
+        private static Dictionary<String, AudioChunks> pm_audio_chunks = new Dictionary<String, AudioChunks>();
+
+        private static void HubPmAudio(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                String target = packet.ReadString(link);
+                String sender = packet.ReadString(link);
+                ushort total = packet;
+                ushort index = packet;
+                String chunk = packet.ReadString(link);
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = target + "\u0000" + sender;
+                AudioChunks buf;
+
+                if (!pm_audio_chunks.TryGetValue(key, out buf) || buf.Total != total)
+                {
+                    buf = new AudioChunks { Total = total, Parts = new String[total], Received = 0 };
+                    pm_audio_chunks[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                pm_audio_chunks.Remove(key);
+
+                StringBuilder sb = new StringBuilder();
+
+                foreach (String part in buf.Parts)
+                    sb.Append(part);
+
+                ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (ic != null)
+                    ic.PmAudio(sender, sb.ToString());
+
+                ServerLog.Channel("link", "recv-pmaudio from " + sender + " to " + target + " (" + sb.Length + " chars)");
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm audio relay failed (ignored)", e);
+            }
+        }
+
+        private static Dictionary<String, AvatarChunkBuffer> pm_scribble_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
+        private static void HubPmScribble(LinkClient link, TCPPacketReader packet)
+        {
+            try
+            {
+                String target = packet.ReadString(link);
+                String sender = packet.ReadString(link);
+                uint height = packet;
+                ushort total = packet;
+                ushort index = packet;
+                byte[] chunk = packet;
+
+                if (total == 0 || index >= total)
+                    return;
+
+                String key = target + "\u0000" + sender;
+
+                if (!pm_scribble_buffers.TryGetValue(key, out var buf) || buf.Total != total)
+                {
+                    buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                    pm_scribble_buffers[key] = buf;
+                }
+
+                if (buf.Parts[index] == null)
+                {
+                    buf.Parts[index] = chunk;
+                    buf.Received++;
+                }
+
+                if (buf.Received < buf.Total)
+                    return;
+
+                pm_scribble_buffers.Remove(key);
+
+                int size = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                        size += part.Length;
+
+                byte[] img = new byte[size];
+                int offset = 0;
+
+                foreach (byte[] part in buf.Parts)
+                    if (part != null)
+                    {
+                        Buffer.BlockCopy(part, 0, img, offset, part.Length);
+                        offset += part.Length;
+                    }
+
+                ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (ic != null)
+                    ic.PmScribble(sender, Convert.ToBase64String(img), (int)height);
+
+                ServerLog.Channel("link", "recv-pmscribble from " + sender + " to " + target + " (" + img.Length + " bytes)");
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm scribble relay failed (ignored)", e);
+            }
         }
 
         private static void HubNudge(LinkClient link, TCPPacketReader packet)
@@ -216,6 +483,13 @@ namespace core.LinkLeaf
 
             if (ac != null)
                 ac.Nudge(sender);
+            else
+            {
+                ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
+
+                if (ic != null)
+                    ic.Nudge(sender);
+            }
         }
 
         private static void HubPublicToUser(LinkClient link, TCPPacketReader packet)
@@ -232,7 +506,10 @@ namespace core.LinkLeaf
                 ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (ic != null)
-                    ic.QueuePacket(ib0t.WebOutbound.PublicTo(ic, sender, text));
+                {
+                    String mid = ib0t.MessageBuffer.NewRoomId(ic.Vroom, sender, text, false, core.Time.Now);
+                    ic.QueuePacket(ib0t.WebOutbound.PublicTo(ic, sender, text, mid));
+                }
             }
         }
 
@@ -250,43 +527,137 @@ namespace core.LinkLeaf
                 ib0t.ib0tClient ic = UserPool.WUsers.Find(x => x.Name == target && x.LoggedIn && !x.Quarantined);
 
                 if (ic != null)
-                    ic.QueuePacket(ib0t.WebOutbound.EmoteTo(ic, sender, text));
+                {
+                    String eid = ib0t.MessageBuffer.NewRoomId(ic.Vroom, sender, text, true, core.Time.Now);
+                    ic.QueuePacket(ib0t.WebOutbound.EmoteTo(ic, sender, text, eid));
+                }
             }
+        }
+
+        private static String LinkedLine(String sender, String customName, String text)
+        {
+            if (!String.IsNullOrEmpty(customName))
+                return customName + text;
+
+            return "\u0003" + "01" + sender + "> " + "\u0003" + "12" + text;
         }
 
         private static void HubPublicToLeaf(LinkClient link, TCPPacketReader packet)
         {
             String sender = packet.ReadString(link);
+            String customName = packet.ReadString(link);
             String text = packet.ReadString(link);
+            ushort vroom = 0;
 
-            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Public(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            if (packet.Remaining >= 2)
+                vroom = packet;
 
-            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            bool hasCustom = !String.IsNullOrEmpty(customName);
+
+            // Si el emisor (usuario de otra sala) esta muteado, no se imprime aca:
+            // el muzzle se respeta entre salas linkeadas.
+            if (SenderMuzzled(link, sender))
+                return;
+
+            // Dedup: the relay may deliver the same message through several paths.
+            if (TextSeen("text|" + sender + "|" + customName + "|" + text))
+                return;
+
+            ChatLog.WriteLine(hasCustom ? "link-recv: " + customName + text : "link-recv: " + sender + "> " + text);
+            ServerLog.Channel("link", "recv-text from " + sender + " (custom=" + hasCustom + ") vroom=" + vroom);
+
+            String mid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, false, core.Time.Now);
+
+            UserPool.AUsers.ForEachWhere(x =>
+            {
+                if (hasCustom && !x.BlockCustomNames)
+                    x.SendPacket(TCPOutbound.NoSuch(x, customName + text));
+                else
+                    x.SendPacket(TCPOutbound.Public(x, sender, text));
+            }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
+
+            UserPool.WUsers.ForEachWhere(x =>
+            {
+                if (hasCustom)
+                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, customName + text));
+                else
+                    x.QueuePacket(ib0t.WebOutbound.PublicTo(x, sender, text, mid));
+            }, x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
         }
 
         private static void HubEmoteToLeaf(LinkClient link, TCPPacketReader packet)
         {
             String sender = packet.ReadString(link);
             String text = packet.ReadString(link);
+            ushort vroom = 0;
+
+            if (packet.Remaining >= 2)
+                vroom = packet;
+
+            if (SenderMuzzled(link, sender))
+                return;
+
+            ChatLog.WriteLine("link-recv: " + sender + " " + text);
+
+            String eid = ib0t.MessageBuffer.NewRoomId(vroom, sender, text, true, core.Time.Now);
 
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+                x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
 
-            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, sender, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, sender, text, eid)),
+                x => x.LoggedIn && !x.Quarantined && x.Vroom == vroom);
         }
+
+        // Collapses duplicate deliveries of the same text for the same user: the relay
+        // sends through several paths to be robust, this makes each user see it once.
+        private static readonly Dictionary<String, ulong> text_dedup = new Dictionary<String, ulong>();
+        private static readonly object text_dedup_lock = new object();
+
+        private static bool TextSeen(String key)
+        {
+            ulong now = core.Time.Now;
+
+            lock (text_dedup_lock)
+            {
+                ulong last;
+
+                if (text_dedup.TryGetValue(key, out last) && (now - last) < 2000)
+                    return true;
+
+                text_dedup[key] = now;
+
+                if (text_dedup.Count > 500)
+                {
+                    List<String> old = new List<String>();
+
+                    foreach (KeyValuePair<String, ulong> kv in text_dedup)
+                        if ((now - kv.Value) > 5000)
+                            old.Add(kv.Key);
+
+                    foreach (String k in old)
+                        text_dedup.Remove(k);
+                }
+
+                return false;
+            }
+        }
+
 
         private static void HubPrintAll(LinkClient link, TCPPacketReader packet)
         {
             String text = packet.ReadString(link);
 
-            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.NoSuch(x, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            UserPool.AUsers.ForEachWhere(x =>
+            {
+                if (!TextSeen(x.Name + "|" + text))
+                    x.SendPacket(TCPOutbound.NoSuch(x, text));
+            }, x => x.LoggedIn && !x.Quarantined);
 
-            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, text)),
-                x => x.LoggedIn && !x.Quarantined);
+            UserPool.WUsers.ForEachWhere(x =>
+            {
+                if (!TextSeen(x.Name + "|" + text))
+                    x.QueuePacket(ib0t.WebOutbound.NoSuchTo(x, text));
+            }, x => x.LoggedIn && !x.Quarantined);
         }
 
         private static void HubPrintVroom(LinkClient link, TCPPacketReader packet)
@@ -461,64 +832,100 @@ namespace core.LinkLeaf
             }
         }
 
+        private static LinkUser ResolveLinkedUser(LinkClient link, Leaf leaf, uint ident, String name)
+        {
+            LinkUser user = null;
+
+            if (leaf != null)
+                user = leaf.Users.Find(x => x.Name == name);
+
+            if (user == null)
+                foreach (Leaf l in link.Leaves)
+                {
+                    user = l.Users.Find(x => x.Name == name);
+
+                    if (user != null)
+                        break;
+                }
+
+            if (user == null)
+            {
+                user = new LinkUser(ident);
+                user.SetName(name);
+            }
+
+            return user;
+        }
+
+        // Devuelve true si el emisor (usuario de otra sala) esta muteado. Asi el
+        // muzzle se respeta entre salas linkeadas: un usuario muteado no aparece en
+        // las demas salas aunque su texto haya salido por el relay.
+        private static bool SenderMuzzled(LinkClient link, String name)
+        {
+            foreach (Leaf l in link.Leaves)
+            {
+                LinkUser u = l.Users.Find(x => x.Name == name);
+
+                if (u != null)
+                    return u.Muzzled;
+            }
+
+            return false;
+        }
+
         private static void HubPublicText(LinkClient link, TCPPacketReader packet)
         {
             uint ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == ident);
+            String name = packet.ReadString(link);
+            String text = packet.ReadString(link);
+            LinkUser user = ResolveLinkedUser(link, leaf, ident, name);
 
-            if (leaf != null)
+            Events.TextReceived(user, text);
+            FloodControl.LinkPost();
+            text = Events.TextSending(user, text);
+
+            if (!String.IsNullOrEmpty(text))
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
+                byte[] js_style = null;
 
-                if (user != null)
+                UserPool.AUsers.ForEachWhere(x =>
                 {
-                    String text = packet.ReadString(link);
-                    Events.TextReceived(user, text);
-                    FloodControl.LinkPost();
-                    text = Events.TextSending(user, text);
-
-                    if (!String.IsNullOrEmpty(text))
+                    if (x.SupportsHTML)
                     {
-                        byte[] js_style = null;
-
-                        UserPool.AUsers.ForEachWhere(x =>
+                        if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
                         {
                             if (x.SupportsHTML)
-                            {
-                                if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
-                                {
-                                    if (x.SupportsHTML)
-                                        if (js_style != null)
-                                            x.SendPacket(js_style);
+                                if (js_style != null)
+                                    x.SendPacket(js_style);
 
-                                    x.SendPacket(TCPOutbound.Public(x, user.Name, text));
-                                }
-                                else
-                                {
-                                    if (x.SupportsHTML)
-                                        if (js_style != null)
-                                            x.SendPacket(js_style);
+                            x.SendPacket(TCPOutbound.Public(x, user.Name, text));
+                        }
+                        else
+                        {
+                            if (x.SupportsHTML)
+                                if (js_style != null)
+                                    x.SendPacket(js_style);
 
-                                    x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
-                                }
-                            }
-                            else
-                            {
-                                if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
-                                    x.SendPacket(TCPOutbound.Public(x, user.Name, text));
-                                else
-                                    x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
-                            }
-                        }, x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(user.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, user.Name, text) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
-                            x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        Events.TextSent(user, text);
+                            x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
+                        }
                     }
-                }
+                    else
+                    {
+                        if (String.IsNullOrEmpty(user.CustomName) || x.BlockCustomNames)
+                            x.SendPacket(TCPOutbound.Public(x, user.Name, text));
+                        else
+                            x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
+                    }
+                }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+
+                String mid = ib0t.MessageBuffer.NewRoomId(user.Vroom, user.Name, text, false, core.Time.Now);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(user.CustomName) ?
+                    ib0t.WebOutbound.PublicTo(x, user.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
+                    x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+
+                Events.TextSent(user, text);
             }
         }
 
@@ -526,38 +933,33 @@ namespace core.LinkLeaf
         {
             uint ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == ident);
+            String name = packet.ReadString(link);
+            String text = packet.ReadString(link);
+            LinkUser user = ResolveLinkedUser(link, leaf, ident, name);
 
-            if (leaf != null)
+            Events.EmoteReceived(user, text);
+            FloodControl.LinkPost();
+            text = Events.EmoteSending(user, text);
+
+            if (!String.IsNullOrEmpty(text))
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
+                byte[] js_style = null;
 
-                if (user != null)
+                UserPool.AUsers.ForEachWhere(x =>
                 {
-                    String text = packet.ReadString(link);
-                    Events.EmoteReceived(user, text);
-                    FloodControl.LinkPost();
-                    text = Events.EmoteSending(user, text);
+                    if (x.SupportsHTML)
+                        if (js_style != null)
+                            x.SendPacket(js_style);
 
-                    if (!String.IsNullOrEmpty(text))
-                    {
-                        byte[] js_style = null;
+                    x.SendPacket(TCPOutbound.Emote(x, user.Name, text));
+                }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
-                        UserPool.AUsers.ForEachWhere(x =>
-                        {
-                            if (x.SupportsHTML)
-                                if (js_style != null)
-                                    x.SendPacket(js_style);
+                String eid = ib0t.MessageBuffer.NewRoomId(user.Vroom, user.Name, text, true, core.Time.Now);
 
-                            x.SendPacket(TCPOutbound.Emote(x, user.Name, text));
-                        }, x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text, eid)),
+                    x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text)),
-                            x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
-
-                        Events.EmoteSent(user, text);
-                    }
-                }
+                Events.EmoteSent(user, text);
             }
         }
 
@@ -602,14 +1004,9 @@ namespace core.LinkLeaf
             String name = packet.ReadString(link);
             String cname = packet.ReadString(link);
             Leaf leaf = link.Leaves.Find(x => x.Ident == ident);
+            LinkUser user = ResolveLinkedUser(link, leaf, ident, name);
 
-            if (leaf != null)
-            {
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
-
-                if (user != null)
-                    user.SetCustomName(cname);
-            }
+            user.SetCustomName(cname);
         }
 
         private static void HubIUser(LinkClient link, TCPPacketReader packet)
@@ -629,7 +1026,11 @@ namespace core.LinkLeaf
                 {
                     case "print":
                         text = packet.ReadString(link);
-                        client.IUser.Print(text);
+                        ServerLog.Channel("link", "recv print -> " + _name + " (" + text.Length + " chars)");
+
+                        if (!TextSeen(_name + "|" + text))
+                            client.IUser.Print(text);
+
                         break;
 
                     case "muzzle":
@@ -769,59 +1170,119 @@ namespace core.LinkLeaf
             }
         }
 
+        private class AvatarChunkBuffer
+        {
+            public ushort Total;
+            public byte[][] Parts;
+            public int Received;
+        }
+
+        private static Dictionary<String, AvatarChunkBuffer> avatar_buffers = new Dictionary<String, AvatarChunkBuffer>();
+
         private static void HubAvatar(LinkClient link, TCPPacketReader packet)
         {
             uint leaf_ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == leaf_ident);
+            String name = packet.ReadString(link);
+            ushort total = packet;
+            ushort index = packet;
+            byte[] chunk = packet;
 
-            if (leaf != null)
+            if (total == 0 || index >= total)
+                return;
+
+            String key = leaf_ident + "|" + name;
+            AvatarChunkBuffer buf;
+
+            if (!avatar_buffers.TryGetValue(key, out buf) || buf.Total != total)
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
-                byte[] buffer = packet;
-
-                if (user != null)
-                    if (Events.AvatarReceived(user))
-                    {
-                        user.SetAvatar(buffer);
-
-                        if (user.Link.Visible)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, user)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
-
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, user.Name, user.Avatar)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
-                        }
-                    }
+                buf = new AvatarChunkBuffer { Total = total, Parts = new byte[total][], Received = 0 };
+                avatar_buffers[key] = buf;
             }
+
+            if (buf.Parts[index] == null)
+            {
+                buf.Parts[index] = chunk;
+                buf.Received++;
+            }
+
+            if (buf.Received < buf.Total)
+                return;
+
+            avatar_buffers.Remove(key);
+
+            int size = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                    size += part.Length;
+
+            byte[] avatar = new byte[size];
+            int offset = 0;
+
+            foreach (byte[] part in buf.Parts)
+                if (part != null)
+                {
+                    Buffer.BlockCopy(part, 0, avatar, offset, part.Length);
+                    offset += part.Length;
+                }
+
+            LinkUser user = ResolveLinkedUser(link, leaf, leaf_ident, name);
+
+            ServerLog.Channel("link", "recv-avatar " + name + " (" + avatar.Length + " bytes)");
+
+            // Avatar 48x48 para Ares. El original (posible gif animado) se conserva
+            // aparte para los clientes web/mobile.
+            byte[] ares = avatar;
+
+            if (ares == null || ares.Length == 0 || ares.Length >= 4064 || !IsJpeg(ares))
+            {
+                ares = ImageUtils.AvatarAres(avatar);
+
+                if (ares == null)
+                    return;
+            }
+
+            if (ares.Length < 10 || ares.Length >= 4064)
+                return;
+
+            if (Events.AvatarReceived(user))
+            {
+                user.SetAvatar(ares, avatar);
+
+                ServerLog.Channel("link", "avatar-set " + name + " (" + ares.Length + " bytes, jpeg=" + IsJpeg(ares) + ")");
+
+                UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, user)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, user.Name, user.FullAvatar)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
+            }
+        }
+
+        private static bool IsJpeg(byte[] data)
+        {
+            return data != null && data.Length >= 3 &&
+                data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF;
         }
 
         private static void HubPersonalMessage(LinkClient link, TCPPacketReader packet)
         {
             uint leaf_ident = packet;
             Leaf leaf = link.Leaves.Find(x => x.Ident == leaf_ident);
+            String name = packet.ReadString(link);
+            LinkUser user = ResolveLinkedUser(link, leaf, leaf_ident, name);
+            String text = packet.ReadString(link);
 
-            if (leaf != null)
+            if (Events.PersonalMessageReceived(user, text))
             {
-                String name = packet.ReadString(link);
-                LinkUser user = leaf.Users.Find(x => x.Name == name);
-                String text = packet.ReadString(link);
+                user.SetPersonalMessage(text);
 
-                if (user != null)
-                    if (Events.PersonalMessageReceived(user, text))
-                    {
-                        user.SetPersonalMessage(text);
+                UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.PersonalMessage(x, user)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
 
-                        if (user.Link.Visible)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.PersonalMessage(x, user)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined);
-
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.PersMsgTo(x, user.Name, user.PersonalMessage)),
-                                x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
-                        }
-                    }
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.PersMsgTo(x, user.Name, user.PersonalMessage)),
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.Quarantined && x.Extended);
             }
         }
 
@@ -1283,10 +1744,11 @@ namespace core.LinkLeaf
             link.Key = list.GetRange(16, 32).ToArray();
             link.Ident = packet;
             link.LoginPhase = LinkLogin.Ready;
+            ServerLog.Channel("link", "connected to hub '" + link.HubName + "' at " + link.ExternalIP + ":" + link.Port + " (ident " + link.Ident + ")");
 
             UserPool.AUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafUserlistItem(link, x)),
                 x => x.LoggedIn && !x.Quarantined);
-            UserPool.AUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafAvatar(link, x)),
+            UserPool.AUsers.ForEachWhere(x => LeafOutbound.SendAvatar(link, x),
                 x => x.LoggedIn && !x.Quarantined && x.Avatar.Length > 0);
             UserPool.AUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafPersonalMessage(link, x)),
                 x => x.LoggedIn && !x.Quarantined && x.PersonalMessage.Length > 0);
@@ -1294,7 +1756,7 @@ namespace core.LinkLeaf
                 x => x.LoggedIn && !x.Quarantined && !String.IsNullOrEmpty(x.CustomName));
             UserPool.WUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafUserlistItem(link, x)),
                 x => x.LoggedIn && !x.Quarantined);
-            UserPool.WUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafAvatar(link, x)),
+            UserPool.WUsers.ForEachWhere(x => LeafOutbound.SendAvatar(link, x),
                 x => x.LoggedIn && !x.Quarantined);
             UserPool.WUsers.ForEachWhere(x => link.SendPacket(LeafOutbound.LeafPersonalMessage(link, x)),
                 x => x.LoggedIn && !x.Quarantined);

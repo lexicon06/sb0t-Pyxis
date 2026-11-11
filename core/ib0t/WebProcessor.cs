@@ -114,6 +114,18 @@ namespace core.ib0t
                     Lag(client, args);
                     break;
 
+                case "REACTION":
+                    RoomReaction(client, args);
+                    break;
+
+                case "PM_REACTION":
+                    PmReaction(client, args);
+                    break;
+
+                case "CLIENT_CAPS":
+                    ClientCaps(client, args);
+                    break;
+
                 default:
                     throw new Exception();
             }
@@ -288,7 +300,7 @@ namespace core.ib0t
             {
                 data = Scale(img);
             }
-            catch { return; }
+            catch (Exception ex) { ServerLog.ChannelError("link", "web scribble scale failed", ex); return; }
             int height = 300;
             if (Settings.Get<bool>("scribbles", "settings"))
             {
@@ -301,6 +313,11 @@ namespace core.ib0t
                                 x => x.LoggedIn && !x.Quarantined && x.Vroom == client.Vroom);
                     UserPool.WUsers.ForEachWhere(x => x.Scribble2(sender, text, height),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Scribble(sender, data.Item1, data.Item3),
+                                x => x.Vroom == client.Vroom);
                 }
                 catch (Exception e)
                 {
@@ -322,7 +339,24 @@ namespace core.ib0t
                     if (name== Settings.Get<String>("bot")) return;
                     ib0tClient target = UserPool.WUsers.Find(x => x.Name == name && x.LoggedIn && (x.IsInbizierMobile || x.IsInbizierWeb));
                     if (target == null)
-                        client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    {
+                        // Maybe the target is in another linked room: relay it privately.
+                        LinkLeaf.LinkUser linked = null;
+
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            {
+                                linked = leaf.Users.Find(x => x.Name == name && x.Vroom == client.Vroom);
+
+                                if (linked != null)
+                                    break;
+                            }
+
+                        if (linked != null)
+                            linked.PmScribble(client.Name, text, height);
+                        else
+                            client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    }
                     else if (target.IgnoreList.Contains(client.Name) || client.Muzzled)
                         client.QueuePacket(WebOutbound.IgnoringTo(client, name));
                     else
@@ -360,6 +394,11 @@ namespace core.ib0t
                 {
                     UserPool.WUsers.ForEachWhere(x => x.Scribble2(sender, text),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Scribble2(sender, text, 300),
+                                x => x.Vroom == client.Vroom);
                 }
                 catch (Exception e)
                 {
@@ -382,6 +421,11 @@ namespace core.ib0t
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && !(x.IsInbizierMobile || x.IsInbizierWeb));
                     UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.NoSuch(x, sender + " ha enviado un audio desde inbizio.")),
                     x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
+
+                    if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Audio(sender, text),
+                                x => x.Vroom == client.Vroom);
                 }
                 catch (Exception e)
                 {
@@ -402,7 +446,24 @@ namespace core.ib0t
                     if (name == Settings.Get<String>("bot")) return;
                     ib0tClient target = UserPool.WUsers.Find(x => x.Name == name && x.LoggedIn && (x.IsInbizierMobile || x.IsInbizierWeb));
                     if (target == null)
-                        client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    {
+                        // Maybe the target is in another linked room: relay it privately.
+                        LinkLeaf.LinkUser linked = null;
+
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            {
+                                linked = leaf.Users.Find(x => x.Name == name && x.Vroom == client.Vroom);
+
+                                if (linked != null)
+                                    break;
+                            }
+
+                        if (linked != null)
+                            linked.PmAudio(client.Name, text);
+                        else
+                            client.QueuePacket(WebOutbound.OfflineTo(client, name));
+                    }
                     else if (target.IgnoreList.Contains(client.Name) || client.Muzzled)
                         client.QueuePacket(WebOutbound.IgnoringTo(client, name));
                     else
@@ -443,6 +504,10 @@ namespace core.ib0t
                     {
                         t.QueuePacket(WebOutbound.BuzzTo(t, client.Name));
                     }
+                    else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                        foreach (LinkLeaf.Leaf leaf in ServerCore.Linker.Leaves)
+                            leaf.Users.ForEachWhere(x => x.Nudge(client.Name),
+                                x => x.Name == target && x.Vroom == client.Vroom);
                         
                 }
                 catch (Exception e)
@@ -497,6 +562,13 @@ namespace core.ib0t
             tmp = tmp.Substring(finder + 1);
             int n_len = int.Parse(lens[0]);
             int t_len = int.Parse(lens[1]);
+            String pmId = null;
+            if (lens.Length > 2)
+            {
+                int i_len = int.Parse(lens[2]);
+                if (tmp.Length >= n_len + t_len + i_len)
+                    pmId = tmp.Substring(n_len + t_len, i_len);
+            }
 
             String name = tmp.Substring(0, n_len);
             String text = tmp.Substring(n_len, t_len);
@@ -559,7 +631,13 @@ namespace core.ib0t
 
                     if (!args.Cancel && !String.IsNullOrEmpty(args.Text) && client.SocketConnected)
                     {
-                        target.IUser.PM(client.Name, args.Text);
+                        // Si el emisor es un cliente antiguo (no manda id), generamos
+                        // uno aca para que el destinatario inbizier pueda reaccionar.
+                        if (String.IsNullOrEmpty(pmId))
+                            pmId = MessageBuffer.NextId();
+
+                        target.IUser.PM(client.Name, args.Text, pmId);
+                        MessageBuffer.AddPm(client.Name, target.Name, pmId, client.Name, args.Text, time);
                         Events.PrivateSent(client, target, args.Text);
                     }
                 }
@@ -587,6 +665,37 @@ namespace core.ib0t
 
             return items.ToArray();
         }
+        // Limites de avatar de ENTRADA (evita que una imagen gigante rompa el
+        // login por el tope de frame de 30MB o cause OOM al decodificar).
+        private const int MAX_AVATAR_BYTES = 15 * 1024 * 1024; // 15 MB
+        private const int MAX_AVATAR_DIM = 4096;               // 4K max por lado
+
+        private static bool AvatarTooLarge(byte[] fullavatar)
+        {
+            if (fullavatar == null)
+                return false;
+
+            if (fullavatar.Length > MAX_AVATAR_BYTES)
+                return true;
+
+            try
+            {
+                using (MemoryStream ms = new MemoryStream(fullavatar))
+                {
+                    var info = SixLabors.ImageSharp.Image.Identify(ms);
+
+                    if (info.Width > MAX_AVATAR_DIM || info.Height > MAX_AVATAR_DIM)
+                        return true;
+                }
+            }
+            catch
+            {
+                // Imagen corrupta: se deja pasar a Scale, que devuelve null.
+            }
+
+            return false;
+        }
+
         private static void Avatar(ib0tClient client, String packet)
         {
             String[] arg_items = GetArgItems(packet);
@@ -596,7 +705,19 @@ namespace core.ib0t
                 if (text != "/default.png")
                 {
                     byte[] fullavatar = Convert.FromBase64String(text);
+
+                    if (AvatarTooLarge(fullavatar))
+                    {
+                        ServerLog.Channel("avatar", "avatar rechazado (demasiado grande) de " + client.Name);
+                        return;
+                    }
+
                     byte[] avatar = client.Scale(fullavatar);
+
+                    // Si no se pudo escalar (imagen rota) no tocamos nada.
+                    if (avatar == null || avatar.Length < 10)
+                        return;
+
                     if (!client.Avatar.SequenceEqual(avatar))
                         if (Events.AvatarReceived(client))
                             if (avatar.Length < 4064)
@@ -608,33 +729,17 @@ namespace core.ib0t
                                     client.AvatarReceived = true;
                                     client.DefaultAvatar = false;
                                 }
-                    if (avatar.Length < 10)
+
+                    if (!client.Cloaked && !client.Quarantined)
                     {
-                        if (!client.Cloaked && !client.Quarantined)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.AvatarCleared(x, client)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
+                        UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, client)),
+                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
 
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarClearTo(x, client.Name)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && (x.IsInbizierWeb || x.IsInbizierMobile));
+                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, client.Name, (x.IsInbizierWeb || x.IsInbizierMobile) ? client.FullAvatar : client.Avatar)),
+                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
 
-                            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
-                        }
-                    }
-                    else
-                    {
-                        if (!client.Cloaked && !client.Quarantined)
-                        {
-                            UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Avatar(x, client)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined);
-
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.AvatarTo(x, client.Name, (x.IsInbizierWeb || x.IsInbizierMobile)?client.FullAvatar:client.Avatar)),
-                                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
-
-                            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
-                        }
+                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                     }
                 }
                 else
@@ -648,7 +753,7 @@ namespace core.ib0t
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && (x.IsInbizierWeb || x.IsInbizierMobile));
 
                         if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                     }
                 }
             } catch(Exception e){
@@ -699,18 +804,27 @@ namespace core.ib0t
                     client.PersonalMessage = arg_items[5];
                     if (arg_items[6] !="/default.png"&&!String.IsNullOrEmpty(arg_items[6])) {
                         byte[] fullavatar = Convert.FromBase64String(arg_items[6]);
-                        byte[] avatar = client.Scale(fullavatar);
-                        if (!client.Avatar.SequenceEqual(avatar))
-                            if (Events.AvatarReceived(client))
-                                if (avatar.Length < 4064)
-                                    if (client.SocketConnected)
-                                    {
-                                        client.OrgAvatar = avatar;
-                                        client.Avatar = avatar;
-                                        client.FullAvatar = fullavatar;
-                                        client.AvatarReceived = true;
-                                        client.DefaultAvatar = false;
-                                    }
+
+                        if (!AvatarTooLarge(fullavatar))
+                        {
+                            byte[] avatar = client.Scale(fullavatar);
+
+                            if (avatar != null && avatar.Length >= 10 && avatar.Length < 4064)
+                                if (!client.Avatar.SequenceEqual(avatar))
+                                    if (Events.AvatarReceived(client))
+                                        if (client.SocketConnected)
+                                        {
+                                            client.OrgAvatar = avatar;
+                                            client.Avatar = avatar;
+                                            client.FullAvatar = fullavatar;
+                                            client.AvatarReceived = true;
+                                            client.DefaultAvatar = false;
+                                        }
+                        }
+                        else
+                        {
+                            ServerLog.Channel("avatar", "avatar rechazado (demasiado grande) de " + client.Name);
+                        }
                     }
                     
                     
@@ -723,8 +837,8 @@ namespace core.ib0t
             if (!client.Captcha)
                 client.Captcha = CaptchaManager.HasCaptcha(client);
 
-            if ((UserPool.AUsers.FindAll(x => x.ExternalIP.Equals(client.ExternalIP)).Count +
-                 UserPool.WUsers.FindAll(x => x.ExternalIP.Equals(client.ExternalIP)).Count) > 3)
+            if ((UserPool.AUsers.FindAll(x => x.ExternalIP != null && x.ExternalIP.Equals(client.ExternalIP)).Count +
+                 UserPool.WUsers.FindAll(x => x.ExternalIP != null && x.ExternalIP.Equals(client.ExternalIP)).Count) > 3)
             {
                 Events.Rejected(client, RejectedMsg.TooManyClients);
                 throw new Exception("too many clients from this ip");
@@ -743,7 +857,7 @@ namespace core.ib0t
                     x.OrgName == client.OrgName) && x.ID != client.ID && x.LoggedIn);
 
             if (hijack != null)
-                if (hijack.ExternalIP.Equals(client.ExternalIP))
+                if (hijack.ExternalIP != null && hijack.ExternalIP.Equals(client.ExternalIP))
                 {
                     if (!hijack.WebClient)
                         ((AresClient)hijack).Disconnect(true);
@@ -877,6 +991,7 @@ namespace core.ib0t
                             x => x.Vroom == client.Vroom && x.Link.Visible);
 
                 client.QueuePacket(WebOutbound.UserlistEndTo(client));
+
                 client.QueuePacket(WebOutbound.UrlTo(client, Settings.Get<String>("link", "url"), Settings.Get<String>("text", "url")));
 
 
@@ -939,7 +1054,14 @@ namespace core.ib0t
                     IdleManager.Set(client);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                {
                     ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafJoin(ServerCore.Linker, client));
+
+                    // Tras el join, relayar el avatar: si vino dentro del login las
+                    // salas linkeadas no lo recibirian de otra forma.
+                    if (client.AvatarReceived && client.Avatar.Length > 0)
+                        LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
+                }
 
                 Events.Joined(client);
 
@@ -973,6 +1095,11 @@ namespace core.ib0t
         private static void Text(ib0tClient client, String args, ulong time)
         {
             String text = args;
+
+            if (client.IsInbizierWeb || client.IsInbizierMobile)
+                ServerLog.Channel("link", "web text in: '" + client.Name + "' inbiz=" +
+                    (client.IsInbizierWeb ? "web" : "mobile") + " len=" + text.Length);
+
             if (text.StartsWith("#login") || text.StartsWith("#register"))
             {
                 Command(client, text.Substring(1));
@@ -1067,12 +1194,16 @@ namespace core.ib0t
                             }
                         }, x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(client.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, client.Name, text) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
-                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
+                        String mid = ib0t.MessageBuffer.NextId();
+                        ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, time);
 
-                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafPublicText(ServerCore.Linker, client.Name, text));
+                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
+                            String.IsNullOrEmpty(client.CustomName)
+                                ? ib0t.WebOutbound.PublicTo(x, client.Name, text, mid)
+                                : (x.ClientCapsNoSuch2
+                                    ? ib0t.WebOutbound.NoSuch2To(x, client.Name, client.CustomName + text, mid)
+                                    : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text))),
+                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                         Events.TextSent(client, text);
                     }
@@ -1128,11 +1259,14 @@ namespace core.ib0t
                                 x.SendPacket(TCPOutbound.Emote(x, client.Name, text));
                             }, x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, client.Name, text)),
+                            String eid = ib0t.MessageBuffer.NextId();
+                            ib0t.MessageBuffer.AddRoom(client.Vroom, eid, client.Name, text, true, time);
+
+                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, client.Name, text, eid)),
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text));
+                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom));
 
                             Events.EmoteSent(client, text);
                         }
@@ -1141,11 +1275,98 @@ namespace core.ib0t
             }
         }
 
+        private static void RoomReaction(ib0tClient client, String packet)
+        {
+            // Nunca debe lanzar: una excepcion aqui desconectaria al cliente
+            // (ServerCore hace Disconnect ante cualquier excepcion).
+            try
+            {
+                RoomReactionCore(client, packet);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "room reaction failed (ignored)", e);
+            }
+        }
+
+        private static void RoomReactionCore(ib0tClient client, String packet)
+        {
+            String[] a = GetArgItems(packet);
+            if (a.Length < 3) return;
+            String id = a[0];
+            String emoji = a[1];
+            String state = a[2];
+            if (String.IsNullOrEmpty(id) || String.IsNullOrEmpty(emoji)) return;
+            if (emoji.Length > 32) return;
+            if (!MessageBuffer.HasRoom(client.Vroom, id)) return;
+            bool isAdd = state != "0";
+            MessageBuffer.ApplyRoomReaction(client.Vroom, id, client.Name, emoji, isAdd);
+            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(WebOutbound.ReactionTo(x, id, client.Name, emoji, isAdd)),
+                x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && !x.IgnoreList.Contains(client.Name) && (x.IsInbizierWeb || x.IsInbizierMobile));
+        }
+
+        private static void PmReaction(ib0tClient client, String packet)
+        {
+            // Nunca debe lanzar: una excepcion aqui desconectaria al cliente.
+            try
+            {
+                PmReactionCore(client, packet);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "pm reaction failed (ignored)", e);
+            }
+        }
+
+        private static void PmReactionCore(ib0tClient client, String packet)
+        {
+            String[] a = GetArgItems(packet);
+            if (a.Length < 4) return;
+            String targetName = a[0];
+            String id = a[1];
+            String emoji = a[2];
+            String state = a[3];
+            if (String.IsNullOrEmpty(targetName) || String.IsNullOrEmpty(id) || String.IsNullOrEmpty(emoji)) return;
+            if (emoji.Length > 32) return;
+            ib0tClient target = UserPool.WUsers.Find(x => x.Name == targetName && x.LoggedIn && (x.IsInbizierMobile || x.IsInbizierWeb));
+            if (target == null) return;
+            if (target.IgnoreList.Contains(client.Name) || client.Muzzled) return;
+            bool isAdd = state != "0";
+            if (!MessageBuffer.HasPm(client.Name, targetName, id)) return;
+            MessageBuffer.ApplyPmReaction(client.Name, targetName, id, client.Name, emoji, isAdd);
+            target.QueuePacket(WebOutbound.PmReactionTo(target, client.Name, id, emoji, isAdd));
+        }
         private static void Command(ib0tClient client, String args)
         {
             Command cmd = new Command { Text = args, Args = String.Empty };
             Helpers.PopulateCommand(cmd);
             Events.Command(client, args, cmd.Target, cmd.Args);
+        }
+
+        // Handshake de capacidades del cliente (solo lo envia MercuryX y solo
+        // cuando el server anuncio la cap "nosuch2" en SERVER_INFO). Sirve para:
+        //   - habilitar NOSUCH2 (reacciones en mensajes con customname),
+        //   - enviar el historial reciente SOLO a clientes que lo entienden.
+        private static void ClientCaps(ib0tClient client, String packet)
+        {
+            // Nunca debe lanzar: una excepcion aqui desconectaria al cliente.
+            try
+            {
+                String[] a = GetArgItems(packet);
+                if (a.Length < 1) return;
+                String caps = a[0] ?? String.Empty;
+
+                if (caps.Contains("react")) client.ClientSupportsReactions = true;
+                if (caps.Contains("nosuch2")) client.ClientCapsNoSuch2 = true;
+
+                // El historial (con reacciones) solo va a clientes que lo entienden.
+                if (client.ClientSupportsReactions)
+                    ib0t.MessageBuffer.SendRoomHistory(client);
+            }
+            catch (Exception e)
+            {
+                ServerLog.ChannelError("link", "client caps failed (ignored)", e);
+            }
         }
     }
 }

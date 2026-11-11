@@ -86,6 +86,8 @@ namespace core
         /// Writes the connected users to a shared JSON file so other processes
         /// (e.g. the web panel) can show the same live user list as the GUI.
         /// </summary>
+        private static int _snapshot_busy = 0;
+
         private static void WriteUsersSnapshot()
         {
             try
@@ -112,7 +114,18 @@ namespace core
 
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(list);
                 string file = Path.Combine(DataPaths.Root, "users.json");
-                WriteSharedFile(file, json);
+
+                // The file write (with retries/sleeps) runs off the server loop so
+                // it never stalls chat/network processing.
+                if (System.Threading.Interlocked.CompareExchange(ref _snapshot_busy, 1, 0) != 0)
+                    return;
+
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try { WriteSharedFile(file, json); }
+                    catch { }
+                    finally { System.Threading.Interlocked.Exchange(ref _snapshot_busy, 0); }
+                });
             }
             catch { }
         }
@@ -354,12 +367,22 @@ namespace core
 
         public static void Log(String message)
         {
-            LogUpdate(null, new ServerLogEventArgs {Message = message});
+            ServerLog.Info(message);
+
+            EventHandler<ServerLogEventArgs> handler = LogUpdate;
+
+            if (handler != null)
+                handler(null, new ServerLogEventArgs {Message = message});
         }
 
         public static void Log(String message, Exception e)
         {
-            LogUpdate(null, new ServerLogEventArgs {Message = message, Error = e});
+            ServerLog.Error(message, e);
+
+            EventHandler<ServerLogEventArgs> handler = LogUpdate;
+
+            if (handler != null)
+                handler(null, new ServerLogEventArgs {Message = message, Error = e});
         }
 
         public bool Open()
@@ -375,7 +398,7 @@ namespace core
             }
             catch (Exception e)
             {
-                LogUpdate(this, new ServerLogEventArgs {Message = "TCP Listener", Error = e});
+                Log("TCP Listener", e);
                 return false;
             }
 
@@ -395,15 +418,11 @@ namespace core
             }
             catch (Exception e)
             {
-                LogUpdate(this, new ServerLogEventArgs {Message = "UDP Listener", Error = e});
+                Log("UDP Listener", e);
                 return false;
             }
 
-            LogUpdate(this,
-                new ServerLogEventArgs
-                {
-                    Message = "Server initialized on port " + ((IPEndPoint) this.tcp.LocalEndpoint).Port
-                });
+            Log("Server initialized on port " + ((IPEndPoint) this.tcp.LocalEndpoint).Port);
             this.thread = new Thread(new ThreadStart(this.ServerThread));
             this.thread.Start();
             this.Running = true;
@@ -445,6 +464,8 @@ namespace core
 
             if (Linker != null)
                 Linker.KillSocket();
+
+            ChatLog.Close();
         }
 
         private void ServerThread()
@@ -586,6 +607,7 @@ namespace core
                     return;
 
                 Socket sock = this.tcp.AcceptSocket();
+                sock.NoDelay = true;
                 Stream networkStream = new NetworkStream(sock);
                 Stream sslStream = new SslStream(networkStream);
                 // NOTE: When using a reverse proxy, this IP will be the proxy's IP, not the real client IP.
@@ -790,15 +812,22 @@ namespace core
             {
                 core.LinkHub.LinkPacket packet = null;
 
-                while ((packet = leaf.NextReceivedPacket) != null && leaf.SocketConnected)
+                while (leaf.SocketConnected)
                     try
                     {
+                        packet = leaf.NextReceivedPacket;
+
+                        if (packet == null)
+                            break;
+
                         core.LinkHub.HubProcessor.Eval(leaf, packet.Msg, packet.Packet, time, mode);
                     }
                     catch (Exception e)
                     {
                         leaf.Disconnect();
-                        Log("packet read fail from leaf " + leaf.Ident + " " + packet.Msg, e);
+                        Log("packet read fail from leaf " + leaf.Ident + " " +
+                            (packet != null ? packet.Msg.ToString() : "?"), e);
+                        ServerLog.ChannelError("link", "packet read fail from leaf id " + leaf.Ident, e);
                         break;
                     }
 

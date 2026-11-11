@@ -151,6 +151,12 @@ namespace core
 
         private static void LinkProto(AresClient client, TCPPacketReader packet, ulong time)
         {
+            if (packet.ToArray().Length < 4)
+            {
+                client.Disconnect();
+                return;
+            }
+
             Leaf leaf = new Leaf(client.Sock, time, packet.ToArray());
             client.IsLeaf = true;
             client.Sock = null;
@@ -308,16 +314,8 @@ namespace core
                     if (!target.IgnoreList.Contains(client.Name))
                         target.SendPacket(TCPOutbound.CustomData(target, client.Name, ident, data));
                 }
-                else if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                {
-                    IClient linked = ServerCore.Linker.FindUser(x => x.Name == name && x.CustomClient);
-
-                    if (linked != null)
-                        ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafCustomDataTo(ServerCore.Linker,
-                                                                                            linked.IUser.Link.Ident,
-                                                                                            client.Name, linked.Name,
-                                                                                            ident, data));
-                }
+                else
+                    LinkLeaf.LeafOutbound.RelayCustomDataTo(name, client.Name, ident, data);
             }
         }
 
@@ -384,7 +382,11 @@ namespace core
 
                     if (!args.Cancel && !String.IsNullOrEmpty(args.Text) && client.SocketConnected)
                     {
-                        target.IUser.PM(client.Name, args.Text);
+                        // El emisor Ares/TCP no manda id de mensaje; lo generamos aca
+                        // para que el destinatario inbizier pueda reaccionar al PM.
+                        String pmId = ib0t.MessageBuffer.NextId();
+                        target.IUser.PM(client.Name, args.Text, pmId);
+                        ib0t.MessageBuffer.AddPm(client.Name, target.Name, pmId, client.Name, args.Text, Time.Now);
                         Events.PrivateSent(client, target, args.Text);
                     }
                 }
@@ -395,8 +397,11 @@ namespace core
         {
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            // cb0t soporta mensajes mas largos; Ares clasico queda en 300.
+            int max_text = client.IsCbot ? 1000 : 300;
+
+            if (text.Length > max_text)
+                text = text.Substring(0, max_text);
 
             if (text.StartsWith("#login") || text.StartsWith("#register"))
             {
@@ -503,12 +508,16 @@ namespace core
                         },
                         x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(client.CustomName) ?
-                            ib0t.WebOutbound.PublicTo(x, client.Name, text) : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text)),
-                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
+                        String mid = ib0t.MessageBuffer.NextId();
+                        ib0t.MessageBuffer.AddRoom(client.Vroom, mid, client.Name, text, false, Time.Now);
 
-                        if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafPublicText(ServerCore.Linker, client.Name, text));
+                        UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
+                            String.IsNullOrEmpty(client.CustomName)
+                                ? ib0t.WebOutbound.PublicTo(x, client.Name, text, mid)
+                                : (x.ClientCapsNoSuch2
+                                    ? ib0t.WebOutbound.NoSuch2To(x, client.Name, client.CustomName + text, mid)
+                                    : ib0t.WebOutbound.NoSuchTo(x, client.CustomName + text))),
+                            x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                         Events.TextSent(client, text);
                     }
@@ -523,8 +532,10 @@ namespace core
 
             String text = packet.ReadString(client);
 
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
+            int max_text = client.IsCbot ? 1000 : 300;
+
+            if (text.Length > max_text)
+                text = text.Substring(0, max_text);
 
             Events.EmoteReceived(client, text);
 
@@ -574,11 +585,14 @@ namespace core
                             },
                             x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
-                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, client.Name, text)),
+                            String eid = ib0t.MessageBuffer.NextId();
+                            ib0t.MessageBuffer.AddRoom(client.Vroom, eid, client.Name, text, true, Time.Now);
+
+                            UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, client.Name, text, eid)),
                                 x => x.LoggedIn && x.Vroom == client.Vroom && !x.IgnoreList.Contains(client.Name) && !x.Quarantined);
 
                             if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text));
+                                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, client.Name, text, client.Vroom));
 
                             Events.EmoteSent(client, text);
                         }
@@ -608,8 +622,7 @@ namespace core
             UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.CustomData(x, client.Name, ident, data)),
                 x => x.LoggedIn && x.Vroom == client.Vroom && x.CustomClient && !x.Quarantined && x.ID != client.ID && !x.IgnoreList.Contains(client.Name));
 
-            if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafCustomDataAll(ServerCore.Linker, client.Vroom, client.Name, ident, data));
+            LinkLeaf.LeafOutbound.RelayCustomDataAll(client.Vroom, client.Name, ident, data);
         }
 
         private static void PersonalMessage(AresClient client, TCPPacketReader packet)
@@ -660,6 +673,9 @@ namespace core
             client.Version = packet.ReadString(client);
             client.Ares = client.Version.StartsWith("Ares 2.") || client.Version.StartsWith("Ares_2.");
             client.IsCbot = client.Version.StartsWith("cb0t ");
+            // Clientes Ares/cb0t: su decoder UTF-8 rompe los caracteres fuera del BMP
+            // (se ven como "醇ݖ猏"). Se normalizan los nicks/topics/mensajes salientes.
+            client.LegacyUnicode = client.Ares || client.IsCbot;
             client.CustomClient = true; // everyone can be custom client
             client.LocalIP = packet;
             packet.SkipBytes(4);
@@ -722,8 +738,8 @@ namespace core
 
             // Use Original IP here
             // Fixes issue #30 https://github.com/AresChat/sb0t/issues/30
-            if ((UserPool.AUsers.FindAll(x => x.OriginalIP.Equals(client.OriginalIP)).Count +
-                 UserPool.WUsers.FindAll(x => x.OriginalIP.Equals(client.OriginalIP)).Count) > 5)
+            if ((UserPool.AUsers.FindAll(x => x.OriginalIP != null && x.OriginalIP.Equals(client.OriginalIP)).Count +
+                 UserPool.WUsers.FindAll(x => x.OriginalIP != null && x.OriginalIP.Equals(client.OriginalIP)).Count) > 5)
             {
                 Events.Rejected(client, RejectedMsg.TooManyClients);
                 throw new Exception("too many clients from this ip");
@@ -743,7 +759,7 @@ namespace core
                     x.OrgName == client.OrgName) && x.ID != client.ID && x.LoggedIn);
 
             if (hijack != null)
-                if (hijack.OriginalIP.Equals(client.OriginalIP))  // Possible issue with using masked ip lets use orginal instead
+                if (hijack.OriginalIP != null && hijack.OriginalIP.Equals(client.OriginalIP))  // Possible issue with using masked ip lets use orginal instead
                 {
                     if (!hijack.WebClient)
                         ((AresClient)hijack).Disconnect(true);
@@ -933,7 +949,14 @@ namespace core
                     IdleManager.Set(client);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
+                {
                     ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafJoin(ServerCore.Linker, client));
+
+                    // Tras el join, relayar el avatar si ya lo tenia (evita que las
+                    // salas linkeadas se queden sin el cuando llego antes del login).
+                    if (client.Avatar != null && client.Avatar.Length > 0)
+                        LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
+                }
                 Events.Joined(client);
 
                 if (client.Owner)

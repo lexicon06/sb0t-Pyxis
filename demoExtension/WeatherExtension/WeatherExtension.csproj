@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>WeatherExtension</RootNamespace>
+    <AssemblyName>extension</AssemblyName>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <!-- deja las dependencias (SixLabors.*) en bin para poder copiarlas a la raiz del server -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Interfaces del host (IExtension, IHostApp, IUser, ...) -->
+    <ProjectReference Include="..\..\iconnect\iconnect.csproj" />
+    <!-- ImageSharp (ya presente en la raiz del server via core) + Drawing (trae SixLabors.Fonts) -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fuentes Inter embebidas en la DLL (no son archivos sueltos) -->
+    <EmbeddedResource Include="Fonts\Inter-Bold.ttf" />
+    <EmbeddedResource Include="Fonts\Inter-Regular.ttf" />
+  </ItemGroup>
+
+</Project>

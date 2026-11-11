@@ -326,9 +326,16 @@ namespace core
 
         public static byte[] Avatar(AresClient client, IClient target)
         {
+            // Ares clients crash on oversized avatars (their limit is < 4064 bytes).
+            // Never forward an avatar that big to a raw Ares client.
+            byte[] avatar = target.Avatar;
+
+            if (avatar == null || avatar.Length == 0 || avatar.Length >= 4064)
+                return null;
+
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, target.Name);
-            packet.WriteBytes(target.Avatar);
+            packet.WriteBytes(avatar);
             return packet.ToAresPacket(TCPMsg.MSG_CHAT_SERVER_AVATAR);
         }
 
@@ -341,9 +348,15 @@ namespace core
 
         public static byte[] BotAvatar(AresClient client, byte[] data)
         {
+            // Ares clients crash on oversized avatars: clamp to the accepted limit.
+            byte[] avatar = data;
+
+            if (avatar == null || avatar.Length == 0 || avatar.Length >= 4064)
+                return null;
+
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, Settings.Get<String>("bot"));
-            packet.WriteBytes(data);
+            packet.WriteBytes(avatar);
             return packet.ToAresPacket(TCPMsg.MSG_CHAT_SERVER_AVATAR);
         }
 
@@ -393,13 +406,25 @@ namespace core
             return packet.ToAresPacket(TCPMsg.MSG_CHAT_SERVER_CUSTOM_DATA);
         }
 
+        // Limite de texto saliente: 300 bytes para Ares clasicos (su protocolo),
+        // mas largo para cb0t (clientes custom) que si lo soportan.
+        private const int TEXT_MAX_ARES = 300;
+        private const int TEXT_MAX_CBOT = 1000;
+
+        private static String ClampText(String text, int max)
+        {
+            if (text.Length > max)
+                text = text.Substring(0, max);
+
+            while (Encoding.UTF8.GetByteCount(text) > max)
+                text = text.Substring(0, text.Length - 1);
+
+            return text;
+        }
+
         public static byte[] Public(AresClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
-
-            while (Encoding.UTF8.GetByteCount(text) > 300)
-                text = text.Substring(0, text.Length - 1);
+            text = ClampText(text, client.IsCbot ? TEXT_MAX_CBOT : TEXT_MAX_ARES);
 
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, username);
@@ -409,11 +434,7 @@ namespace core
 
         public static byte[] Emote(AresClient client, String username, String text)
         {
-            if (text.Length > 300)
-                text = text.Substring(0, 300);
-
-            while (Encoding.UTF8.GetByteCount(text) > 300)
-                text = text.Substring(0, text.Length - 1);
+            text = ClampText(text, client.IsCbot ? TEXT_MAX_CBOT : TEXT_MAX_ARES);
 
             TCPPacketWriter packet = new TCPPacketWriter();
             packet.WriteString(client, username);

@@ -1,0 +1,6 @@
+bin/
+obj/
+cache/
+dist/
+tools/
+demo.jpg

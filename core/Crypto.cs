@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,12 +27,14 @@ namespace core
 {
     class Crypto
     {
+        private static readonly RandomNumberGenerator rng = RandomNumberGenerator.Create();
+
         public static byte[] Encrypt(byte[] data, byte[] key, byte[] iv)
         {
             byte[] result;
 
             using (MemoryStream ms = new MemoryStream())
-            using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
+            using (Aes aes = Aes.Create())
             using (ICryptoTransform enc = aes.CreateEncryptor(key, iv))
             using (CryptoStream cs = new CryptoStream(ms, enc, CryptoStreamMode.Write))
             {
@@ -49,13 +51,18 @@ namespace core
             byte[] result;
 
             using (MemoryStream ms = new MemoryStream(data))
-            using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
+            using (Aes aes = Aes.Create())
             using (ICryptoTransform enc = aes.CreateDecryptor(key, iv))
             using (CryptoStream cs = new CryptoStream(ms, enc, CryptoStreamMode.Read))
+            using (MemoryStream output = new MemoryStream())
             {
-                result = new byte[data.Length];
-                int size = cs.Read(result, 0, result.Length);
-                result = result.Take(size).ToArray();
+                byte[] buffer = new byte[4096];
+                int size;
+
+                while ((size = cs.Read(buffer, 0, buffer.Length)) > 0)
+                    output.Write(buffer, 0, size);
+
+                result = output.ToArray();
             }
 
             return result;
@@ -65,11 +72,8 @@ namespace core
         {
             get
             {
-                byte[] result;
-
-                using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-                    result = aes.Key;
-
+                byte[] result = new byte[32];
+                rng.GetBytes(result);
                 return result;
             }
         }
@@ -78,11 +82,8 @@ namespace core
         {
             get
             {
-                byte[] result;
-
-                using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-                    result = aes.IV;
-
+                byte[] result = new byte[16];
+                rng.GetBytes(result);
                 return result;
             }
         }

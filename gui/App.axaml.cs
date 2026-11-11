@@ -26,10 +26,7 @@ namespace gui
                 catch { }
                 try
                 {
-                    string root = core.DataPaths.Root;
-                    if (!System.IO.Directory.Exists(root))
-                        System.IO.Directory.CreateDirectory(root);
-                    System.IO.File.AppendAllText(System.IO.Path.Combine(root, "serverlog.txt"), DateTime.UtcNow + " " + msg + Environment.NewLine);
+                    core.ServerLog.Error("UNHANDLED EXCEPTION", ex);
                 }
                 catch { }
             };

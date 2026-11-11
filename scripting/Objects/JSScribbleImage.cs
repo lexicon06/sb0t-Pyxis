@@ -44,6 +44,7 @@ namespace scripting.Objects
         }
 
         public byte[] Data { get; set; }
+        public byte[] DataPng { get; set; }
         public UserDefinedFunction Callback { get; set; }
         public String ScriptName { get; set; }
         public String Arg { get; set; }
@@ -125,10 +126,22 @@ namespace scripting.Objects
         {
             if (this.Data == null)
                 return;
-            if ((target.IsInbizierWeb || target.IsInbizierMobile) && !String.IsNullOrEmpty(this.URL))
-                target.Scribble(sender == null ? Server.Chatroom.BotName : sender, this.URL);
+
+            String who = sender == null ? Server.Chatroom.BotName : sender;
+
+            // Cualquier cliente WEB puede renderizar PNG (con alpha).
+            // Solo cb0t/Ares (que usan el scribble JPEG) reciben el JPEG.
+            if (target.WebClient)
+            {
+                if (!String.IsNullOrEmpty(this.URL))
+                    target.Scribble(who, this.URL);
+                else if (this.DataPng != null)
+                    target.Scribble(who, this.DataPng, this.Height);
+                else
+                    target.Scribble(who, this.Data, this.Height);
+            }
             else
-                target.Scribble(sender == null ? Server.Chatroom.BotName : sender, this.Data, this.Height);
+                target.Scribble(who, this.Data, this.Height);
         }
 
         public void SendScribble(String sender, ILeaf leaf)

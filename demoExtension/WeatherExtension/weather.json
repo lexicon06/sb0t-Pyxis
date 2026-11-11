@@ -1,0 +1,6 @@
+{
+  "trigger": "iclima",
+  "photo": true,
+  "cooldownSeconds": 5,
+  "cacheMinutes": 5
+}

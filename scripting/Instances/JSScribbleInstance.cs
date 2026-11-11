@@ -85,7 +85,6 @@ namespace scripting.Instances
                     }
 
                     int img_x, img_y;
-                    byte[] img_buffer;
 
                     using (MemoryStream raw_ms = new MemoryStream(bytes_in.ToArray()))
                     using (SixLabors.ImageSharp.Image avatar_raw = SixLabors.ImageSharp.Image.Load(raw_ms))
@@ -106,9 +105,15 @@ namespace scripting.Instances
                         }
                     }
 
-                    img_buffer = ImageUtils.ToSizedJpeg(bytes_in.ToArray(), img_x, img_y);
+                    try
+                    {
+                        ImageUtils.ToSized(bytes_in.ToArray(), img_x, img_y, out byte[] _jpeg, out byte[] _png);
+                        result.Data = _jpeg != null ? Server.Compression.Compress(_jpeg) : null;
+                        result.DataPng = _png != null ? Server.Compression.Compress(_png) : null;
+                    }
+                    catch { }
+
                     result.Height = img_y;
-                    result.Data = Server.Compression.Compress(img_buffer);
                     bytes_in.Clear();
                 }
                 catch { }
@@ -172,8 +177,10 @@ namespace scripting.Instances
                                         }
                                     }
 
+                                    ImageUtils.ToSized(data, img_x, img_y, out byte[] _jpeg, out byte[] _png);
                                     scr.Height = img_y;
-                                    scr.Data = Server.Compression.Compress(ImageUtils.ToSizedJpeg(data, img_x, img_y));
+                                    scr.Data = _jpeg != null ? Server.Compression.Compress(_jpeg) : null;
+                                    scr.DataPng = _png != null ? Server.Compression.Compress(_png) : null;
                                 }
                                 catch { }
                             }

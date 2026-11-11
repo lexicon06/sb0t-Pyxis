@@ -19,6 +19,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Net;
@@ -40,8 +41,9 @@ namespace core.LinkHub
         public ushort Port { get; set; }
         public ushort Protocol { get; set; }
         public List<LinkUser> Users { get; set; }
+        public bool Local { get; set; }
 
-        private List<byte> data_in = new List<byte>();
+        private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
         private int socket_health = 0;
 
@@ -64,28 +66,109 @@ namespace core.LinkHub
             set { this.socket_health = value ? 0 : 10; }
         }
 
-        public void SendReceive()
+        private byte[] out_scratch = new byte[32768];
+        private byte[] out_pending = null;
+        private int out_pending_offset = 0;
+        private byte[] recv_buffer = new byte[8192];
+
+        private bool FlushPending()
         {
-            while (this.data_out.Count > 0)
+            if (this.out_pending == null)
+                return true;
+
+            while (this.out_pending_offset < this.out_pending.Length)
             {
                 try
                 {
-                    byte[] packet;
+                    int sent = this.Sock.Send(this.out_pending, this.out_pending_offset,
+                        this.out_pending.Length - this.out_pending_offset, SocketFlags.None);
 
-                    if (this.data_out.TryPeek(out packet))
-                    {
-                        this.Sock.Send(packet);
-                        Stats.DataSent += (ulong)packet.Length;
+                    if (sent <= 0)
+                        return false;
 
-                        while (!this.data_out.TryDequeue(out packet))
-                            continue;
-                    }
-                    else break;
+                    Stats.DataSent += (ulong)sent;
+                    this.out_pending_offset += sent;
                 }
-                catch { break; }
+                catch { return false; }
             }
 
-            byte[] buffer = new byte[8192];
+            this.out_pending = null;
+            this.out_pending_offset = 0;
+            return true;
+        }
+
+        private void FlushSend()
+        {
+            if (!this.FlushPending())
+                return;
+
+            while (this.data_out.Count > 0)
+            {
+                byte[] packet;
+                int count = 0;
+
+                while (this.data_out.Count > 0 && this.data_out.TryPeek(out packet))
+                {
+                    if (packet == null)
+                    {
+                        this.data_out.TryDequeue(out packet);
+                        continue;
+                    }
+
+                    if (packet.Length > this.out_scratch.Length || count + packet.Length > this.out_scratch.Length)
+                        break;
+
+                    this.data_out.TryDequeue(out packet);
+                    Buffer.BlockCopy(packet, 0, this.out_scratch, count, packet.Length);
+                    count += packet.Length;
+                }
+
+                if (count == 0)
+                {
+                    if (!this.data_out.TryDequeue(out packet) || packet == null)
+                        break;
+
+                    this.out_pending = packet;
+                    this.out_pending_offset = 0;
+
+                    if (!this.FlushPending())
+                        return;
+
+                    continue;
+                }
+
+                int offset = 0;
+
+                while (offset < count)
+                {
+                    try
+                    {
+                        int sent = this.Sock.Send(this.out_scratch, offset, count - offset, SocketFlags.None);
+
+                        if (sent <= 0)
+                            break;
+
+                        Stats.DataSent += (ulong)sent;
+                        offset += sent;
+                    }
+                    catch { break; }
+                }
+
+                if (offset < count)
+                {
+                    this.out_pending = new byte[count - offset];
+                    Buffer.BlockCopy(this.out_scratch, offset, this.out_pending, 0, count - offset);
+                    this.out_pending_offset = 0;
+                    return;
+                }
+            }
+        }
+
+        public void SendReceive()
+        {
+            this.FlushSend();
+
+            byte[] buffer = this.recv_buffer;
             int received = 0;
             SocketError e = SocketError.Success;
 
@@ -97,7 +180,7 @@ namespace core.LinkHub
             else
             {
                 this.socket_health = 0;
-                this.data_in.AddRange(buffer.Take(received));
+                this.data_in.AddRange(new ArraySegment<byte>(buffer, 0, received));
                 Stats.DataReceived += (ulong)received;
             }
         }
@@ -109,16 +192,22 @@ namespace core.LinkHub
                 if (this.data_in.Count < 3)
                     return null;
 
-                ushort size = BitConverter.ToUInt16(this.data_in.ToArray(), 0);
+                ushort size = (ushort)(this.data_in[0] | (this.data_in[1] << 8));
                 byte id = this.data_in[2];
 
                 if (this.data_in.Count >= (size + 3))
                 {
-                    byte[] data = this.data_in.GetRange(3, size).ToArray();
+                    if (size < 3)
+                        throw new InvalidDataException("leaf frame payload too short (" + size + " bytes)");
+
+                    byte[] data = new byte[size];
+                    this.data_in.CopyTo(3, data, 0, size);
                     this.data_in.RemoveRange(0, (size + 3));
                     LinkPacket packet = new LinkPacket();
                     packet.Msg = (LinkMsg)data[2];
-                    packet.Packet = new TCPPacketReader(data.Skip(3).ToArray());
+                    byte[] payload = new byte[size - 3];
+                    Buffer.BlockCopy(data, 3, payload, 0, size - 3);
+                    packet.Packet = new TCPPacketReader(payload);
                     return packet;
                 }
 
@@ -128,6 +217,9 @@ namespace core.LinkHub
 
         public void Disconnect()
         {
+            if (this.LoginPhase == LinkLogin.Ready)
+                ServerLog.Channel("link", "leaf disconnected: " + this.Name + " id " + this.Ident + " (" + this.ExternalIP + ")");
+
             while (this.data_out.Count > 0)
             {
                 try
@@ -173,6 +265,7 @@ namespace core.LinkHub
                         this.SendPacket(HubOutbound.LinkError(LinkError.HandshakeTimeout));
                         this.SocketConnected = false;
                         ServerCore.Log("handshake timeout from leaf " + this.ExternalIP + " id: " + this.Ident);
+                        ServerLog.Channel("link", "handshake timeout from leaf id " + this.Ident);
                     }
                     break;
 
@@ -182,6 +275,7 @@ namespace core.LinkHub
                         this.SendPacket(HubOutbound.LinkError(LinkError.HandshakeTimeout));
                         this.SocketConnected = false;
                         ServerCore.Log("handshake timeout from leaf " + this.ExternalIP + " id: " + this.Ident);
+                        ServerLog.Channel("link", "userlist timeout from leaf id " + this.Ident);
                     }
                     break;
 
@@ -191,6 +285,7 @@ namespace core.LinkHub
                         this.SendPacket(HubOutbound.LinkError(LinkError.PingTimeout));
                         this.SocketConnected = false;
                         ServerCore.Log("ping timeout from leaf " + this.ExternalIP + " id: " + this.Ident);
+                        ServerLog.Channel("link", "PING TIMEOUT from leaf id " + this.Ident + " (" + this.ExternalIP + ")");
                     }
                     break;
             }

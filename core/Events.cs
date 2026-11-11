@@ -290,9 +290,37 @@ namespace core
             });
         }
 
+        // Cualquier actividad del usuario lo saca del estado "ausente", sin importar
+        // si despues un script/filtro consume el texto (si eso pasaba, no se detectaba
+        // el regreso y habia que escribir /me).
+        private static void ClearIdle(IClient client, String text)
+        {
+            if (client == null || !client.Idled)
+                return;
+
+            // No des-idlear cuando el propio texto es el disparador de idle.
+            if (text != null && text.StartsWith("idles"))
+                return;
+
+            uint seconds_away = (uint)((Time.Now - client.IdleStart) / 1000);
+            IdleManager.Remove(client);
+            Unidled(client, seconds_away);
+        }
+
         public static String TextSending(IClient client, String text)
         {
+            String original = text;
             String result = text;
+
+            ClearIdle(client, result);
+
+            // Link relay, fired at the exact same point the community onTextBefore
+            // script ran, so hub <-> leaf works for every local message the same way
+            // the script did (regardless of what a script/command returns afterwards).
+            // No relayear si el emisor esta muteado: en su sala no puede hablar, asi
+            // que tampoco debe aparecer en las salas linkeadas.
+            if ((client is AresClient || client is ib0t.ib0tClient) && !client.Muzzled)
+                LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, result, client);
 
             result = js.TextSending(client != null ? client.IUser : null, result);
 
@@ -311,6 +339,14 @@ namespace core
                     }
                     catch { }
                 });
+
+            // Un script puede consumir el texto devolviendo "" (p.ej. para renderizar
+            // imagenes/HTML por su cuenta). En ese caso el server no llamaria a
+            // TextSent (historial, VSpy, filtros, stats) y el mensaje se perderia del
+            // historial. Lo procesamos igual con el texto ORIGINAL, sin reenviarlo a
+            // los usuarios (de eso ya se encargo el script).
+            if (String.IsNullOrEmpty(result) && !String.IsNullOrEmpty(original))
+                TextSent(client, original);
 
             return result;
         }
@@ -350,6 +386,8 @@ namespace core
         public static String EmoteSending(IClient client, String text)
         {
             String result = text;
+
+            ClearIdle(client, result);
 
             if (DefaultCommands)
                 result = cmds.EmoteSending(client != null ? client.IUser : null, result);
@@ -471,6 +509,46 @@ namespace core
             if (command == "help")
             {
                 Help(client);
+                return;
+            }
+
+            if (command == "linkbuild")
+            {
+                int leaves = ServerCore.Linker != null ? ServerCore.Linker.Leaves.Count : 0;
+                int linked = 0;
+
+                if (ServerCore.Linker != null)
+                    foreach (var l in ServerCore.Linker.Leaves)
+                        linked += l.Users.Count;
+
+                client.Print("sb0t link relay v24 | isLinked=" +
+                    (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
+                    " leaves=" + leaves + " linkedUsers=" + linked +
+                    " leafPool=" + LinkHub.LeafPool.Leaves.Count);
+                return;
+            }
+
+            if (command == "linktest" || command.StartsWith("linktest "))
+            {
+                int leaves = ServerCore.Linker != null ? ServerCore.Linker.Leaves.Count : 0;
+                int linked = 0;
+
+                if (ServerCore.Linker != null)
+                    foreach (var l in ServerCore.Linker.Leaves)
+                        linked += l.Users.Count;
+
+                client.Print("linktest v24: isLinked=" +
+                    (ServerCore.Linker != null && ServerCore.Linker.IsLinked) +
+                    " linkLeaves=" + leaves + " linkUsers=" + linked +
+                    " leafPool=" + LinkHub.LeafPool.Leaves.Count);
+
+                String testText = command.Length > 9 ? command.Substring(9).Trim() : String.Empty;
+
+                if (String.IsNullOrEmpty(testText))
+                    testText = "prueba " + Helpers.UnixTime;
+
+                LinkLeaf.LeafOutbound.RelayPublicText(client.Name, client.CustomName, testText, client);
+                client.Print("linktest: RelayPublicText de '" + client.Name + "' con '" + testText + "' (mira el otro server)");
                 return;
             }
 
@@ -992,6 +1070,8 @@ namespace core
 
         public static void LinkError(core.LinkLeaf.LinkError e)
         {
+            ServerLog.Channel("link", "link error: " + e);
+
             if (DefaultCommands)
                 cmds.LinkError((ILinkError)e);
 
@@ -1006,6 +1086,8 @@ namespace core
 
         public static void Linked()
         {
+            ServerLog.Channel("link", "linked");
+
             if (DefaultCommands)
                 cmds.Linked();
 
@@ -1020,6 +1102,8 @@ namespace core
 
         public static void Unlinked()
         {
+            ServerLog.Channel("link", "unlinked");
+
             if (DefaultCommands)
                 cmds.Unlinked();
 
@@ -1034,6 +1118,8 @@ namespace core
 
         public static void LeafJoined(LinkLeaf.Leaf leaf)
         {
+            ServerLog.Channel("link", "leaf joined: " + (leaf != null && leaf.Name != null ? leaf.Name : "?"));
+
             if (DefaultCommands)
                 cmds.LeafJoined(leaf);
 
@@ -1048,6 +1134,8 @@ namespace core
 
         public static void LeafParted(LinkLeaf.Leaf leaf)
         {
+            ServerLog.Channel("link", "leaf parted: " + (leaf != null && leaf.Name != null ? leaf.Name : "?"));
+
             if (DefaultCommands)
                 cmds.LeafParted(leaf);
 

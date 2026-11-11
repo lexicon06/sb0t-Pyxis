@@ -464,7 +464,7 @@ namespace core
                         x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended);
 
                     if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                        ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
+                        LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                 }
 
             if (!String.IsNullOrEmpty(client.PersonalMessage))
@@ -630,7 +630,7 @@ namespace core
                         x => x.LoggedIn && x.Vroom == client.Vroom && !x.Quarantined && x.Extended && !(x.IsInbizierWeb || x.IsInbizierMobile));
 
                     if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                        ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, client));
+                        LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, client);
                 }
 
             if (!String.IsNullOrEmpty(client.PersonalMessage))

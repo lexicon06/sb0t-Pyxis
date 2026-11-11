@@ -34,6 +34,11 @@ namespace core
         public uint LastScribble { get; set; }
         public bool Ares { get; set; }
         public bool IsCbot { get; set; }
+
+        // true: los Ares antiguos/no actualizados traen un decoder UTF-8 casero que
+        // rompe las secuencias de 4 bytes (SMP > U+FFFF): hay que sanitizar lo que
+        // les mandamos. Ver LegacyUnicode.Sanitize.
+        public bool LegacyUnicode { get; set; }
         public ushort ID { get; private set; }
         public IPAddress ExternalIP { get; set; }
         public IPAddress OriginalIP { get; set; }
@@ -99,8 +104,10 @@ namespace core
         public ulong AvatarTimeout { get; set; }
         public bool DefaultAvatar { get; set; }
 
-        private List<byte> data_in = new List<byte>();
+        private ByteBuffer data_in = new ByteBuffer();
         private ConcurrentQueue<byte[]> data_out = new ConcurrentQueue<byte[]>();
+
+        private byte[] recv_buffer = new byte[8192];
         private int socket_health = 0;
         private byte[] avatar = new byte[] { };
         private String personal_message = String.Empty;
@@ -209,6 +216,11 @@ namespace core
             // not this Ares socket handler. Nothing to do for raw Ares clients.
         }
 
+        public void Audio(String sender, String base64)
+        {
+            // Audio clips are an inbizier-only feature; raw Ares clients ignore them.
+        }
+
         public void Nudge(String sender)
         {
             byte[] buf = Encoding.UTF8.GetBytes("0" + sender);
@@ -308,6 +320,11 @@ namespace core
             }
         }
 
+        public void PM(String sender, String text, String id)
+        {
+            this.PM(sender, text);
+        }
+
         public void Redirect(String hashlink)
         {
             Room room = Hashlink.DecodeHashlink(hashlink);
@@ -340,11 +357,14 @@ namespace core
                 UserPool.AUsers.ForEachWhere(x => x.SendPacket(TCPOutbound.Emote(x, this.Name, text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, this.Name, text)),
+                String eid = ib0t.MessageBuffer.NextId();
+                ib0t.MessageBuffer.AddRoom(this.Vroom, eid, this.Name, text, true, core.Time.Now);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, this.Name, text, eid)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
                 if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, this.Name, text));
+                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafEmoteText(ServerCore.Linker, this.Name, text, this.Vroom));
             }
         }
 
@@ -356,19 +376,26 @@ namespace core
                     TCPOutbound.Public(x, this.Name, text) : TCPOutbound.NoSuch(x, this.CustomName + text)),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
-                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(this.CustomName) ?
-                    ib0t.WebOutbound.PublicTo(x, this.Name, text) : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text)),
+                String mid = ib0t.MessageBuffer.NextId();
+                ib0t.MessageBuffer.AddRoom(this.Vroom, mid, this.Name, text, false, core.Time.Now);
+
+                UserPool.WUsers.ForEachWhere(x => x.QueuePacket(
+                    String.IsNullOrEmpty(this.CustomName)
+                        ? ib0t.WebOutbound.PublicTo(x, this.Name, text, mid)
+                        : (x.ClientCapsNoSuch2
+                            ? ib0t.WebOutbound.NoSuch2To(x, this.Name, this.CustomName + text, mid)
+                            : ib0t.WebOutbound.NoSuchTo(x, this.CustomName + text))),
                     x => x.LoggedIn && x.Vroom == this.Vroom && !x.IgnoreList.Contains(this.Name) && !x.Quarantined);
 
-                if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                    ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafPublicText(ServerCore.Linker, this.Name, text));
+                if (!this.Muzzled)
+                    LinkLeaf.LeafOutbound.RelayPublicText(this.Name, this.CustomName, text, this);
             }
         }
 
         public void Topic(String text)
         {
             if (text != null)
-                if (Encoding.UTF8.GetByteCount(text) <= 500)
+                if (Encoding.UTF8.GetByteCount(text) <= 10000)
                     this.SendPacket(TCPOutbound.TopicFirst(this, text));
         }
 
@@ -607,7 +634,7 @@ namespace core
                             x => x.LoggedIn && x.Vroom == this.Vroom && !x.Quarantined && x.Extended);
 
                         if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, this));
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, this);
                     }
                 }
                 else
@@ -624,7 +651,7 @@ namespace core
 
 
                         if (ServerCore.Linker.Busy && ServerCore.Linker.LoginPhase == LinkLeaf.LinkLogin.Ready)
-                            ServerCore.Linker.SendPacket(LinkLeaf.LeafOutbound.LeafAvatar(ServerCore.Linker, this));
+                            LinkLeaf.LeafOutbound.SendAvatar(ServerCore.Linker, this);
                     }
                 }
             }
@@ -662,28 +689,108 @@ namespace core
             this.data_out.Enqueue(packet);
         }
 
-        public void SendReceive()
+        private byte[] out_scratch = new byte[32768];
+        private byte[] out_pending = null;
+        private int out_pending_offset = 0;
+
+        private bool FlushPending()
         {
-            while (this.data_out.Count > 0)
+            if (this.out_pending == null)
+                return true;
+
+            while (this.out_pending_offset < this.out_pending.Length)
             {
                 try
                 {
-                    byte[] packet;
+                    int sent = this.Sock.Send(this.out_pending, this.out_pending_offset,
+                        this.out_pending.Length - this.out_pending_offset, SocketFlags.None);
 
-                    if (this.data_out.TryPeek(out packet))
-                    {
-                        this.Sock.Send(packet);
-                        Stats.DataSent += (ulong)packet.Length;
+                    if (sent <= 0)
+                        return false;
 
-                        while (!this.data_out.TryDequeue(out packet))
-                            continue;
-                    }
-                    else break;
+                    Stats.DataSent += (ulong)sent;
+                    this.out_pending_offset += sent;
                 }
-                catch { break; }
+                catch { return false; }
             }
 
-            byte[] buffer = new byte[8192];
+            this.out_pending = null;
+            this.out_pending_offset = 0;
+            return true;
+        }
+
+        private void FlushSend()
+        {
+            if (!this.FlushPending())
+                return;
+
+            while (this.data_out.Count > 0)
+            {
+                byte[] packet;
+                int count = 0;
+
+                while (this.data_out.Count > 0 && this.data_out.TryPeek(out packet))
+                {
+                    if (packet == null)
+                    {
+                        this.data_out.TryDequeue(out packet);
+                        continue;
+                    }
+
+                    if (packet.Length > this.out_scratch.Length || count + packet.Length > this.out_scratch.Length)
+                        break;
+
+                    this.data_out.TryDequeue(out packet);
+                    Buffer.BlockCopy(packet, 0, this.out_scratch, count, packet.Length);
+                    count += packet.Length;
+                }
+
+                if (count == 0)
+                {
+                    if (!this.data_out.TryDequeue(out packet) || packet == null)
+                        break;
+
+                    this.out_pending = packet;
+                    this.out_pending_offset = 0;
+
+                    if (!this.FlushPending())
+                        return;
+
+                    continue;
+                }
+
+                int offset = 0;
+
+                while (offset < count)
+                {
+                    try
+                    {
+                        int sent = this.Sock.Send(this.out_scratch, offset, count - offset, SocketFlags.None);
+
+                        if (sent <= 0)
+                            break;
+
+                        Stats.DataSent += (ulong)sent;
+                        offset += sent;
+                    }
+                    catch { break; }
+                }
+
+                if (offset < count)
+                {
+                    this.out_pending = new byte[count - offset];
+                    Buffer.BlockCopy(this.out_scratch, offset, this.out_pending, 0, count - offset);
+                    this.out_pending_offset = 0;
+                    return;
+                }
+            }
+        }
+
+        public void SendReceive()
+        {
+            this.FlushSend();
+
+            byte[] buffer = this.recv_buffer;
             int received = 0;
             SocketError e = SocketError.Success;
 
@@ -695,7 +802,7 @@ namespace core
             else
             {
                 this.socket_health = 0;
-                this.data_in.AddRange(buffer.Take(received));
+                this.data_in.AddRange(new ArraySegment<byte>(buffer, 0, received));
                 Stats.DataReceived += (ulong)received;
             }
 
@@ -818,15 +925,17 @@ namespace core
                 if (this.data_in.Count < 3)
                     return null;
 
-                ushort size = BitConverter.ToUInt16(this.data_in.ToArray(), 0);
+                ushort size = (ushort)(this.data_in[0] | (this.data_in[1] << 8));
                 byte id = this.data_in[2];
 
                 if (this.data_in.Count >= (size + 3))
                 {
+                    byte[] data = new byte[size];
+                    this.data_in.CopyTo(3, data, 0, size);
+                    this.data_in.RemoveRange(0, (size + 3));
                     TCPPacket packet = new TCPPacket();
                     packet.Msg = (TCPMsg)id;
-                    packet.Packet = new TCPPacketReader(this.data_in.GetRange(3, size).ToArray());
-                    this.data_in.RemoveRange(0, (size + 3));
+                    packet.Packet = new TCPPacketReader(data);
                     return packet;
                 }
 
@@ -849,17 +958,7 @@ namespace core
             if (asn != 0)
                 return asn;
 
-            try
-            {
-                string reverseIp = new IPAddress(OriginalIP.GetAddressBytes().Reverse().ToArray()).ToString();
-                Response response = dnsResolver.Query($"{reverseIp}.origin.asn.cymru.com", QType.TXT);
-
-                asn = uint.Parse(response.RecordsTXT.FirstOrDefault()?.TXT.FirstOrDefault().Split('|').FirstOrDefault());
-            }
-            catch
-            {
-                return 0;
-            }
+            asn = AsnLookup.Get(OriginalIP);
 
             return asn;
         }

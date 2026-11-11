@@ -61,15 +61,28 @@ namespace commands
         }
 
         private static int greet_index;
+        private static int last_pick = -1;
 
         public static String GetGreet(IUser client)
         {
             if (list.Count > 0)
             {
-                if (greet_index >= list.Count)
-                    greet_index = 0;
+                // Elegir una bienvenida al azar (antes era secuencial).
+                int pick;
 
-                String s = list[greet_index++];
+                if (list.Count == 1)
+                    pick = 0;
+                else
+                {
+                    // Evitar repetir la ultima usada para que no salga dos veces seguidas.
+                    pick = (int)Math.Floor(new Random().NextDouble() * list.Count);
+
+                    if (pick == last_pick)
+                        pick = (pick + 1) % list.Count;
+                }
+
+                last_pick = pick;
+                String s = list[pick];
                 String _str = Helpers.CountryCodeToString(client.Country);
                 List<String> list1 = new List<String>();
                 Server.Users.Ares(x => list1.Add(x.Name));
@@ -94,17 +107,17 @@ namespace commands
                 if (_str == "?")
                     _str = "unknown";
 
-                s = s.Replace("+n", client.Name);
-                s = s.Replace("+ip", client.ExternalIP.ToString());
-                s = s.Replace("+id", client.ID.ToString());
-                s = s.Replace("+f", client.FileCount.ToString());
-                s = s.Replace("+v", client.Version);
-                s = s.Replace("+p", client.DataPort.ToString());
-                s = s.Replace("+uc", Server.Stats.CurrentUserCount.ToString());
-                s = s.Replace("+rn", Server.Chatroom.Name);
-                s = s.Replace("+ut", Helpers.GetUptime);
-                s = s.Replace("+ru", rnd_user);
-                s = s.Replace("+l", _str);
+                s = ReplaceToken(s, "+n", client.Name);
+                s = ReplaceToken(s, "+ip", client.ExternalIP.ToString());
+                s = ReplaceToken(s, "+id", client.ID.ToString());
+                s = ReplaceToken(s, "+f", client.FileCount.ToString());
+                s = ReplaceToken(s, "+v", client.Version);
+                s = ReplaceToken(s, "+p", client.DataPort.ToString());
+                s = ReplaceToken(s, "+uc", Server.Stats.CurrentUserCount.ToString());
+                s = ReplaceToken(s, "+rn", Server.Chatroom.Name);
+                s = ReplaceToken(s, "+ut", Helpers.GetUptime);
+                s = ReplaceToken(s, "+ru", rnd_user);
+                s = ReplaceToken(s, "+l", _str);
 
                 return s;
             }
@@ -112,9 +125,20 @@ namespace commands
             return "hello " + client.Name;
         }
 
+        // Reemplaza un token sin importar mayusculas/minusculas (+id == +ID).
+        // El orden de los tokens mas largos va primero para no cortar otros
+        // (ej. +uc antes que +u... no hay +u, pero igual se respeta).
+        private static String ReplaceToken(String text, String token, String value)
+        {
+            return System.Text.RegularExpressions.Regex.Replace(
+                text, System.Text.RegularExpressions.Regex.Escape(token), value,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
         public static void Load()
         {
             greet_index = 0;
+            last_pick = -1;
             list = new List<String>();
 
             try
@@ -192,17 +216,17 @@ namespace commands
                 _str = "unknown";
 
             String s = _pm;
-            s = s.Replace("+n", client.Name);
-            s = s.Replace("+ip", client.ExternalIP.ToString());
-            s = s.Replace("+id", client.ID.ToString());
-            s = s.Replace("+f", client.FileCount.ToString());
-            s = s.Replace("+v", client.Version);
-            s = s.Replace("+p", client.DataPort.ToString());
-            s = s.Replace("+uc", Server.Stats.CurrentUserCount.ToString());
-            s = s.Replace("+rn", Server.Chatroom.Name);
-            s = s.Replace("+ut", Helpers.GetUptime);
-            s = s.Replace("+ru", rnd_user);
-            s = s.Replace("+l", _str);
+            s = ReplaceToken(s, "+n", client.Name);
+            s = ReplaceToken(s, "+ip", client.ExternalIP.ToString());
+            s = ReplaceToken(s, "+id", client.ID.ToString());
+            s = ReplaceToken(s, "+f", client.FileCount.ToString());
+            s = ReplaceToken(s, "+v", client.Version);
+            s = ReplaceToken(s, "+p", client.DataPort.ToString());
+            s = ReplaceToken(s, "+uc", Server.Stats.CurrentUserCount.ToString());
+            s = ReplaceToken(s, "+rn", Server.Chatroom.Name);
+            s = ReplaceToken(s, "+ut", Helpers.GetUptime);
+            s = ReplaceToken(s, "+ru", rnd_user);
+            s = ReplaceToken(s, "+l", _str);
             return s;
         }
     }

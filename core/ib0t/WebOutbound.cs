@@ -32,7 +32,10 @@ namespace core.ib0t
         }
         public static byte[] ServerInfo(ib0tClient userobj)
         {
-            return WebSockets.Html5TextPacket("SERVER_INFO:2:II" , userobj.WebCredentials.OldProto);
+            // Capacidades del server (solo para clientes inbizier; ver WebProcessor.Login).
+            // El cliente muestra reacciones solo si "caps" incluye "react".
+            String data = "ver=" + Settings.VERSION_NUMBER + ";caps=react,pmreact,nosuch2";
+            return WebSockets.Html5TextPacket("SERVER_INFO:" + data.Length + ":" + data, userobj.WebCredentials.OldProto);
         }
         public static byte[] BuzzTo(ib0tClient userobj,String target)
         {
@@ -40,6 +43,13 @@ namespace core.ib0t
         }
         public static byte[] PrivateTo(ib0tClient userobj, String name, String text)
         {
+            return PrivateTo(userobj, name, text, null);
+        }
+        public static byte[] PrivateTo(ib0tClient userobj, String name, String text, String id)
+        {
+            if (!String.IsNullOrEmpty(id) && (userobj.IsInbizierWeb || userobj.IsInbizierMobile))
+                return WebSockets.Html5TextPacket("PM:" + name.Length + "," + text.Length + "," + id.Length + ":" + name + text + id, userobj.WebCredentials.OldProto);
+
             return WebSockets.Html5TextPacket("PM:" + name.Length + "," + text.Length +":" + name + text , userobj.WebCredentials.OldProto);
         }
 
@@ -91,10 +101,17 @@ namespace core.ib0t
         }
         public static byte[] PublicTo(ib0tClient userobj, String name, String text)
         {
+            return PublicTo(userobj, name, text, null);
+        }
+        public static byte[] PublicTo(ib0tClient userobj, String name, String text, String id)
+        {
             String str = text;
 
             if (str.Length > 300)
                 str = str.Substring(0, 300);
+
+            if (!String.IsNullOrEmpty(id) && (userobj.IsInbizierWeb || userobj.IsInbizierMobile))
+                return WebSockets.Html5TextPacket("PUBLIC:" + name.Length + "," + str.Length + "," + id.Length + ":" + name + str + id, userobj.WebCredentials.OldProto);
 
             return WebSockets.Html5TextPacket("PUBLIC:" + name.Length + "," + str.Length + ":" + name + str, userobj.WebCredentials.OldProto);
         }
@@ -105,10 +122,17 @@ namespace core.ib0t
 
         public static byte[] EmoteTo(ib0tClient userobj, String name, String text)
         {
+            return EmoteTo(userobj, name, text, null);
+        }
+        public static byte[] EmoteTo(ib0tClient userobj, String name, String text, String id)
+        {
             String str = text;
 
             if (str.Length > 300)
                 str = str.Substring(0, 300);
+
+            if (!String.IsNullOrEmpty(id) && (userobj.IsInbizierWeb || userobj.IsInbizierMobile))
+                return WebSockets.Html5TextPacket("EMOTE:" + name.Length + "," + str.Length + "," + id.Length + ":" + name + str + id, userobj.WebCredentials.OldProto);
 
             return WebSockets.Html5TextPacket("EMOTE:" + name.Length + "," + str.Length + ":" + name + str, userobj.WebCredentials.OldProto);
         }
@@ -121,6 +145,25 @@ namespace core.ib0t
                 str = str.Substring(0, 300);
 
             return WebSockets.Html5TextPacket("NOSUCH:" + str.Length + ":" + str, userobj.WebCredentials.OldProto);
+        }
+
+        // NOSUCH2: como NOSUCH pero con el nick real del emisor y el id del
+        // mensaje, para que MercuryX pueda mostrar reacciones sobre mensajes de
+        // usuarios con customname. Solo se envia a clientes que anunciaron la
+        // cap "nosuch2" (ver WebProcessor.ClientCaps).
+        public static byte[] NoSuch2To(ib0tClient userobj, String nick, String text, String id)
+        {
+            String str = text;
+
+            if (str.Length > 300)
+                str = str.Substring(0, 300);
+
+            String n = nick ?? String.Empty;
+
+            if (String.IsNullOrEmpty(id))
+                return WebSockets.Html5TextPacket("NOSUCH:" + str.Length + ":" + str, userobj.WebCredentials.OldProto);
+
+            return WebSockets.Html5TextPacket("NOSUCH2:" + n.Length + "," + str.Length + "," + id.Length + ":" + n + str + id, userobj.WebCredentials.OldProto);
         }
 
         public static byte[] ScribbleHead(ib0tClient userobj, String sender, int count, String height)
@@ -291,6 +334,41 @@ namespace core.ib0t
         public static byte[] TopicFirstTo(ib0tClient userobj, String text)
         {
             return WebSockets.Html5TextPacket("TOPIC_FIRST:" + text.Length + ":" + text, userobj.WebCredentials.OldProto);
+        }
+
+        // Reaccion de sala (server -> clientes inbizier de la vroom).
+        // Formato: REACTION:<idLen>,<nameLen>,<emojiLen>,1:<id><name><emoji><state>
+        public static byte[] ReactionTo(ib0tClient userobj, String id, String name, String emoji, bool isAdd)
+        {
+            String state = isAdd ? "1" : "0";
+            return WebSockets.Html5TextPacket("REACTION:" + id.Length + "," + name.Length + "," + emoji.Length + ",1:" + id + name + emoji + state, userobj.WebCredentials.OldProto);
+        }
+
+        // Reaccion a un privado (server -> el otro participante).
+        // Formato: PM_REACTION:<nameLen>,<idLen>,<emojiLen>,1:<name><id><emoji><state>
+        public static byte[] PmReactionTo(ib0tClient userobj, String name, String id, String emoji, bool isAdd)
+        {
+            String state = isAdd ? "1" : "0";
+            return WebSockets.Html5TextPacket("PM_REACTION:" + name.Length + "," + id.Length + "," + emoji.Length + ",1:" + name + id + emoji + state, userobj.WebCredentials.OldProto);
+        }
+
+        // Reproduccion de historial reciente (con reacciones) al entrar/reconectar.
+        public static byte[] HistoryHead(ib0tClient userobj, int count)
+        {
+            String c = count.ToString();
+            return WebSockets.Html5TextPacket("HISTORY_HEAD:" + c.Length + ":" + c, userobj.WebCredentials.OldProto);
+        }
+
+        public static byte[] HistoryMsg(ib0tClient userobj, String sender, String text, String id, ulong time, String reactB64, bool emote)
+        {
+            String t = time.ToString();
+            String e = emote ? "1" : "0";
+            return WebSockets.Html5TextPacket("HISTORY_MSG:" + sender.Length + "," + text.Length + "," + id.Length + "," + t.Length + "," + reactB64.Length + ",1:" + sender + text + id + t + reactB64 + e, userobj.WebCredentials.OldProto);
+        }
+
+        public static byte[] HistoryEnd(ib0tClient userobj)
+        {
+            return WebSockets.Html5TextPacket("HISTORY_END:", userobj.WebCredentials.OldProto);
         }
     }
 }
