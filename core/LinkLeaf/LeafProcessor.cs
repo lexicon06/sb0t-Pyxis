@@ -1277,6 +1277,9 @@ namespace core.LinkLeaf
             LinkUser user = ResolveLinkedUser(link, leaf, leaf_ident, name);
             String text = packet.ReadString(link);
 
+            if (user == null)
+                return;
+
             if (Events.PersonalMessageReceived(user, text))
             {
                 user.SetPersonalMessage(text);
