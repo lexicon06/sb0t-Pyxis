@@ -280,6 +280,9 @@ namespace core.LinkLeaf
 
             ServerLog.Channel("link", "recv-scribble-leaf " + sender + " (" + img.Length + " bytes)");
 
+            LinkUser user = ResolveLinkedUser(link, null, 0, sender);
+            ushort vroom = user != null ? user.Vroom : (ushort)0;
+
             String bot = Settings.Get<String>("bot");
 
             UserPool.AUsers.ForEachWhere(x =>
@@ -288,10 +291,10 @@ namespace core.LinkLeaf
                 x.SendPacket(TCPOutbound.NoSuch(x, "\x000314--- From " + sender));
                 x.Scribble(bot, img, height);
             },
-            x => x.LoggedIn && !x.Quarantined && x.CustomClient);
+            x => x.LoggedIn && !x.Quarantined && x.CustomClient && x.Vroom == vroom);
 
             UserPool.WUsers.ForEachWhere(x => x.Scribble(sender, img, height),
-                x => x.LoggedIn && !x.Quarantined && x.Extended);
+                x => x.LoggedIn && !x.Quarantined && x.Extended && x.Vroom == vroom);
         }
 
         private class AudioChunks
@@ -917,13 +920,13 @@ namespace core.LinkLeaf
                         else
                             x.SendPacket(TCPOutbound.NoSuch(x, user.CustomName + text));
                     }
-                }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+                }, x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
                 String mid = ib0t.MessageBuffer.NewRoomId(user.Vroom, user.Name, text, false, core.Time.Now);
 
                 UserPool.WUsers.ForEachWhere(x => x.QueuePacket(String.IsNullOrEmpty(user.CustomName) ?
                     ib0t.WebOutbound.PublicTo(x, user.Name, text, mid) : ib0t.WebOutbound.NoSuchTo(x, user.CustomName + text)),
-                    x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
                 Events.TextSent(user, text);
             }
@@ -952,12 +955,12 @@ namespace core.LinkLeaf
                             x.SendPacket(js_style);
 
                     x.SendPacket(TCPOutbound.Emote(x, user.Name, text));
-                }, x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+                }, x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
                 String eid = ib0t.MessageBuffer.NewRoomId(user.Vroom, user.Name, text, true, core.Time.Now);
 
                 UserPool.WUsers.ForEachWhere(x => x.QueuePacket(ib0t.WebOutbound.EmoteTo(x, user.Name, text, eid)),
-                    x => x.LoggedIn && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
+                    x => x.LoggedIn && x.Vroom == user.Vroom && !x.IgnoreList.Contains(user.Name) && !x.Quarantined);
 
                 Events.EmoteSent(user, text);
             }
